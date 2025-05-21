@@ -5,6 +5,7 @@ export default function ContractsTable() {
   const [data, setData] = useState([]);
   const [maintenanceData, setMaintenanceData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterMode, setFilterMode] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -41,22 +42,6 @@ export default function ContractsTable() {
 
   const normalize = (str) => str?.toLowerCase().replace(/\s+/g, "").trim();
 
-  const filtered = data.filter((row) =>
-    Object.values(row).some((val) => normalize(val).includes(normalize(searchTerm)))
-  );
-
-  const headersToShow = [
-    "Contract No.",
-    "Booking Number",
-    "Customer",
-    "EJAR",
-    "Model ( Ejar )",
-    "INVYGO",
-    "Model",
-    "Phone Number",
-    "Pick-up Date",
-  ];
-
   const isInMaintenance = (row) => {
     const booking = row["Booking Number"] || "";
     const isNumeric = !isNaN(Number(booking));
@@ -77,6 +62,36 @@ export default function ContractsTable() {
     return record && !!record["Date IN"];
   };
 
+  const isMismatch = (row) => {
+    const booking = row["Booking Number"] || "";
+    const isNumeric = !isNaN(Number(booking));
+    const ejar = normalize(row["EJAR"]);
+    const invygo = normalize(row["INVYGO"]);
+    return isNumeric && ejar && invygo && ejar !== invygo;
+  };
+
+  const filtered = data.filter((row) => {
+    const searchMatch = Object.values(row).some((val) => normalize(val).includes(normalize(searchTerm)));
+    if (!searchMatch) return false;
+
+    if (filterMode === "mismatch") return isMismatch(row);
+    if (filterMode === "switchback") return isMismatch(row) && isCompleted(row);
+
+    return true;
+  });
+
+  const headersToShow = [
+    "Contract No.",
+    "Booking Number",
+    "Customer",
+    "EJAR",
+    "Model ( Ejar )",
+    "INVYGO",
+    "Model",
+    "Phone Number",
+    "Pick-up Date",
+  ];
+
   const exportToExcel = () => {
     const ws = XLSX.utils.json_to_sheet(filtered);
     const wb = XLSX.utils.book_new();
@@ -84,22 +99,10 @@ export default function ContractsTable() {
     XLSX.writeFile(wb, `Contracts_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  const printTable = () => {
-    const printContents = document.getElementById("contracts-table")?.innerHTML;
-    const printWindow = window.open("", "", "height=800,width=1200");
-    if (printWindow) {
-      printWindow.document.write("<html><head><title>Contracts Print</title></head><body>");
-      printWindow.document.write(printContents);
-      printWindow.document.write("</body></html>");
-      printWindow.document.close();
-      printWindow.print();
-    }
-  };
-
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
       <a
-        href="https://moalamir52.github.io/Yelo/"
+        href="https://moalamir52.github.io/Yelo/#dashboard"
         style={{
           display: "inline-block",
           marginBottom: "20px",
@@ -129,133 +132,58 @@ export default function ContractsTable() {
         <p style={{ color: "#6a1b9a", fontSize: "16px", fontWeight: "bold" }}>Search and view all active contracts in one place</p>
       </div>
 
-      {loading ? (
-        <p style={{ textAlign: "center" }}>Loading...</p>
-      ) : error ? (
-        <p style={{ color: "red", textAlign: "center" }}>{error}</p>
-      ) : (
-        <>
-          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-            <input
-              type="text"
-              placeholder="🔍 Search in all fields..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                padding: 10,
-                minWidth: 320,
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                fontSize: 16
-              }}
-            />
-            <button
-              onClick={() => setSearchTerm("")}
-              style={{
-                padding: "10px 16px",
-                backgroundColor: "#6a1b9a",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer"
-              }}
-            >
-              ❌ Reset
-            </button>
-            <button
-              onClick={exportToExcel}
-              style={{
-                padding: "10px 16px",
-                backgroundColor: "#388e3c",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer"
-              }}
-            >
-              📤 Export to Excel
-            </button>
-            <button
-              onClick={printTable}
-              style={{
-                padding: "10px 16px",
-                backgroundColor: "#1976d2",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: "bold",
-                cursor: "pointer"
-              }}
-            >
-              🖨 Print
-            </button>
-          </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="🔍 Search..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ padding: 10, minWidth: 280 }}
+        />
+        <button onClick={() => setSearchTerm("")}>❌ Reset</button>
+        <button onClick={exportToExcel}>📤 Export</button>
+        <button onClick={() => setFilterMode("all")}>📋 All ({data.length})</button>
+        <button onClick={() => setFilterMode("mismatch")}>⚠️ Mismatch ({data.filter(isMismatch).length})</button>
+        <button onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({data.filter(row => isMismatch(row) && isCompleted(row)).length})</button>
+      </div>
 
-          <div id="contracts-table" style={{ overflowX: "auto", maxHeight: "75vh", background: "white", borderRadius: 10 }}>
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
-              <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "#ffd600" }}>
-                <tr>
-                  <th style={{ border: "1px solid #ccc", padding: 10, minWidth: 50, color: "#6a1b9a", textAlign: "center" }}>#</th>
-                  {headersToShow.map((header, idx) => (
-                    <th
-                      key={idx}
-                      style={{
-                        border: "1px solid #ccc",
-                        padding: 10,
-                        minWidth: 150,
-                        background: "#ffd600",
-                        color: "#6a1b9a",
-                        textAlign: "center"
-                      }}
-                    >
-                      {header}
-                    </th>
+      {loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p style={{ color: "red" }}>{error}</p>
+      ) : (
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead style={{ backgroundColor: "#ffd600" }}>
+            <tr>
+              <th style={{ border: "1px solid #ccc", padding: 10 }}>#</th>
+              {headersToShow.map((header, idx) => (
+                <th key={idx} style={{ border: "1px solid #ccc", padding: 10 }}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row, idx) => {
+              const mismatch = isMismatch(row);
+              const completed = mismatch && isCompleted(row);
+              const backgroundColor = completed
+                ? "#ccffcc"
+                : mismatch
+                ? "#ffcccc"
+                : idx % 2 === 0
+                ? "#fffde7"
+                : "#ffffff";
+
+              return (
+                <tr key={idx} style={{ backgroundColor }}>
+                  <td style={{ border: "1px solid #ccc", padding: 8 }}>{idx + 1}</td>
+                  {headersToShow.map((header, i) => (
+                    <td key={i} style={{ border: "1px solid #ccc", padding: 8 }}>{row[header]}</td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row, idx) => {
-                  let backgroundColor = "#ffffff";
-                  const booking = row["Booking Number"] || "";
-                  const isNumericBooking = !isNaN(Number(booking));
-                  const ejar = normalize(row["EJAR"]);
-                  const invygo = normalize(row["INVYGO"]);
-
-                  const inMaintenance = isNumericBooking && ejar !== invygo && isInMaintenance(row);
-                  const completed = isNumericBooking && ejar !== invygo && isCompleted(row);
-
-                  if (inMaintenance && !completed) backgroundColor = "#ffcccc";
-                  else if (inMaintenance && completed) backgroundColor = "#ccffcc";
-                  else backgroundColor = idx % 2 === 0 ? "#fffde7" : "#ffffff";
-
-                  return (
-                    <tr key={idx} style={{ backgroundColor }}>
-                      <td style={{ border: "1px solid #ddd", padding: 8, textAlign: "center" }}>{idx + 1}</td>
-                      {headersToShow.map((header, i) => (
-                        <td key={i} style={{ border: "1px solid #ddd", padding: 8, textAlign: "center" }}>
-                          {header === "Phone Number" && row[header] ? (
-                            <a
-                              href={`https://wa.me/${row[header].replace(/\D/g, "")}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: "#25D366", textDecoration: "none", fontWeight: "bold" }}
-                            >
-                              {row[header]}
-                            </a>
-                          ) : (
-                            row[header] || ""
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   );
