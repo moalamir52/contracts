@@ -359,9 +359,25 @@ export default function ContractsTable() {
       closed_invygo: 'Closed (Invygo)',
       closed_other: 'Closed (Other)'
   };
-
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
+      <a
+        href="https://moalamir52.github.io/Yelo/#dashboard"
+        style={{
+          display: "inline-block",
+          marginBottom: "20px",
+          backgroundColor: "#ffd600",
+          color: "#6a1b9a",
+          padding: "10px 20px",
+          textDecoration: "none",
+          fontWeight: "bold",
+          borderRadius: "8px",
+          border: "2px solid #6a1b9a"
+        }}
+      >
+        ← Back to YELO
+      </a>
+
       <div style={{ margin: '0 auto' }}>
         <header style={{
             backgroundColor: "#ffd600", padding: "25px 35px", borderRadius: "20px",
