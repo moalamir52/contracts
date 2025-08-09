@@ -2,12 +2,88 @@ import { useState, useEffect, useMemo } from "react";
 
 // The XLSX library is now loaded dynamically via a script tag, so the import is removed.
 
-// نافذة مبسطة لعرض بيانات العقد
+// Toast component for copy notifications
+function Toast({ message, show }) {
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: '#28a745',
+      color: 'white',
+      padding: '12px 24px',
+      borderRadius: '8px',
+      zIndex: 10000,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      transition: 'opacity 0.5s',
+    }}>
+      {message}
+    </div>
+  );
+}
+
+
+// Resizer component for table columns
+function ColumnResizer({ onResize }) {
+  const handleMouseDown = (e) => {
+    // Prevent text selection and other default behaviors
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.pageX;
+    const thElement = e.target.parentElement;
+    const startWidth = thElement.offsetWidth;
+
+    const handleMouseMove = (moveEvent) => {
+      const newWidth = startWidth + (moveEvent.pageX - startX);
+      // Enforce a minimum width for columns
+      if (newWidth > 60) {
+        onResize(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      // Clean up event listeners
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      // Reset body styles
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    // Add listeners to the document to capture mouse movement anywhere on the page
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    // Change body cursor to indicate resizing
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        height: '100%',
+        width: '8px', // A slightly wider, more user-friendly handle
+        cursor: 'col-resize',
+        zIndex: 10,
+      }}
+    />
+  );
+}
+
+
+// Simple modal to display contract data
 function ContractModal({ contract, onClose }) {
   if (!contract) return null;
 
   // We convert the internal keys back to display-friendly names for the modal
-  const displayContract = {};
   const displayNames = {
     contractNo: 'Contract No.',
     bookingNumber: 'Booking Number',
@@ -89,7 +165,22 @@ export default function ContractsTable() {
   const [selectedContract, setSelectedContract] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [xlsxReady, setXlsxReady] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [showToast, setShowToast] = useState(false);
   
+  const [columnWidths, setColumnWidths] = useState({
+      customer: 180, contractNo: 160, invygoPlate: 150, 
+      ejarPlate: 150, phoneNumber: 130, invygoModel: 180, 
+      ejarModel: 180, bookingNumber: 130, contractType: 140, pickupBranch: 140
+  });
+
+  const handleColumnResize = (headerKey, newWidth) => {
+    setColumnWidths(prevWidths => ({
+        ...prevWidths,
+        [headerKey]: newWidth
+    }));
+  };
+
   const columnMappings = {
     open: {
       'Contract No.': 'contractNo', 'Booking Number': 'bookingNumber', 'Customer': 'customer',
@@ -262,8 +353,16 @@ export default function ContractsTable() {
     };
   }, [allContracts, maintenanceData, searchTerm, filterMode]);
 
+  const showToastNotification = (message) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => {
+        setShowToast(false);
+    }, 3000); // Hide after 3 seconds
+  };
+
   // Use legacy copy command for better compatibility in sandboxed environments
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text, message = "Copied to clipboard!") => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
     textArea.style.position = "fixed"; // Make it invisible
@@ -274,8 +373,10 @@ export default function ContractsTable() {
     textArea.select();
     try {
       document.execCommand('copy');
+      showToastNotification(message);
     } catch (err) {
       console.error('Fallback: Oops, unable to copy', err);
+      showToastNotification("Failed to copy!");
     }
     document.body.removeChild(textArea);
   };
@@ -296,7 +397,8 @@ export default function ContractsTable() {
       open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate',],
       closed_invygo: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'model1', 'ejarPlate', 'invygoModel', 'pickupDate', 'contact', 'dropoffDate'],
       closed_other: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'invygoModel', 'pickupDate', 'dropoffDate'],
-      master: ['contractNo', 'contractType', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'model1', 'phoneNumber', 'pickupBranch', 'pickupDate', 'replacementDate', 'dropoffDate', 'contact']
+      master: ['contractNo', 'contractType', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'model1', 'phoneNumber', 'pickupBranch', 'pickupDate', 'replacementDate', 'dropoffDate', 'contact'],
+      switchback: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate']
   };
 
   const headerDisplayNames = {
@@ -304,32 +406,91 @@ export default function ContractsTable() {
     invygoModel: 'Model', invygoPlate: 'Plate No.', ejarModel: 'Replace Model',
     ejarPlate: 'Rep Plate no.', phoneNumber: 'Phone Number', pickupBranch: 'Pick-up Branch',
     pickupDate: 'Pick-up Date', replacementDate: 'Replacement Date', dropoffDate: 'Drop-off Date',
-    model1: 'Model (Repeated)', contact: 'Contact', contractType: 'Contract Type'
+    model1: 'Model (Repeated)', contact: 'Contact', contractType: 'Contract Type',
   };
 
+  // Determine which columns to show based on the filter
   const getHeadersForData = (data) => {
-    if (searchTerm.trim() === '') return headersConfig.open;
+  if (filterMode === "switchback" && searchTerm.trim() === '') return headersConfig.switchback;
+  if (searchTerm.trim() === '') return headersConfig.open;
 
-    if (data.length === 0) return headersConfig.open;
+  if (data.length === 0) return headersConfig.open;
 
-    const populatedKeys = new Set(['contractNo']); // Always show contract number
-    data.forEach(row => {
-        for (const key in row) {
-            if (row[key] && key !== 'type') {
-                populatedKeys.add(key);
-            }
-        }
-    });
-
-    // If search is active, always include the contractType column for clarity
-    if (searchTerm.trim() !== '') {
-        populatedKeys.add('contractType');
+  const populatedKeys = new Set(['contractNo']); // Always show contract number
+  data.forEach(row => {
+    for (const key in row) {
+      if (row[key] && key !== 'type') {
+        populatedKeys.add(key);
+      }
     }
+  });
 
-    return headersConfig.master.filter(key => populatedKeys.has(key));
+  // If search is active, always include the contractType column for clarity
+  if (searchTerm.trim() !== '') {
+    populatedKeys.add('contractType');
+  }
+
+  return headersConfig.master.filter(key => populatedKeys.has(key));
   };
 
   const headersToShow = getHeadersForData(filteredData);
+  // Function to find the latest "Date IN" for a vehicle
+  const getLatestDateIn = (row) => {
+    if (!row || !maintenanceData || !row.invygoPlate) return '';
+    const records = maintenanceData.filter(m => normalize(m["Vehicle"]) === normalize(row.invygoPlate) && m["Date IN"]);
+    if (records.length === 0) return '';
+    
+    // Convert all date strings to Date objects, supporting various formats
+    const dates = records.map(r => {
+        const str = r["Date IN"];
+        if (!str || str.trim() === '') return null;
+
+        // Normalize separator to '-'
+        const normalizedStr = str.replace(/\//g, '-');
+        const parts = normalizedStr.split('-');
+
+        if (parts.length !== 3) {
+            // Attempt to parse other formats
+            const d = new Date(str);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        // Assume DD-MM-YYYY based on original code
+        let [day, month, year] = parts.map(p => parseInt(p, 10));
+
+        // Check for parsing errors
+        if (isNaN(day) || isNaN(month) || isNaN(year)) {
+            const d = new Date(str);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        // Handle two-digit year
+        if (year < 100) {
+            year += 2000;
+        }
+
+        // Date object month is 0-indexed
+        const d = new Date(Date.UTC(year, month - 1, day));
+
+        // Final validity check
+        return isNaN(d.getTime()) ? null : d;
+    }).filter(Boolean);
+
+    if (dates.length === 0) return '';
+    // Find the most recent date
+    const latest = new Date(Math.max(...dates.map(d => d.getTime())));
+    return latest;
+  };
+
+  // Function to calculate days since the latest "Date IN"
+  const getDaysSinceLatestIn = (row) => {
+    const latestDate = getLatestDateIn(row);
+    if (!latestDate) return '';
+    const today = new Date();
+    const diffTime = today.getTime() - latestDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : '';
+  };
   
   const buttonStyle = {
     padding: "10px 16px", backgroundColor: "#fff", color: "#6a1b9a",
@@ -346,12 +507,6 @@ export default function ContractsTable() {
   const cellStyle = {
     border: "1px solid #ccc", padding: "4px 6px", textAlign: "center",
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  };
-  
-  const columnWidths = {
-      customer: 180, contractNo: 160, invygoPlate: 150, 
-      ejarPlate: 150, phoneNumber: 130, invygoModel: 180, 
-      ejarModel: 180, bookingNumber: 130, contractType: 140, pickupBranch: 140
   };
   
   const contractTypeDisplay = {
@@ -412,13 +567,17 @@ export default function ContractsTable() {
           <p style={{ color: "red", textAlign: 'center', fontWeight: 'bold' }}>{error}</p>
         ) : (
           <div id="contracts-table-container" style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", margin: "0 auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: 'fixed', margin: "0 auto" }}>
               <thead style={{ backgroundColor: "#ffd600" }}>
                 <tr>
-                  <th style={{...cellStyle, minWidth: 50}}>#</th>
+                  <th style={{...cellStyle, width: 50, position: 'relative'}}>
+                    #
+                    <ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} />
+                  </th>
                   {headersToShow.map((headerKey) => (
-                    <th key={headerKey} style={{...cellStyle, minWidth: columnWidths[headerKey] || 120 }}>
+                    <th key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 120, position: 'relative' }}>
                       {headerDisplayNames[headerKey] || headerKey}
+                      <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
                     </th>
                   ))}
                 </tr>
@@ -445,47 +604,60 @@ export default function ContractsTable() {
                       if (filterMode === "switchback") {
                           text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
                       }
-                      copyToClipboard(text);
+                      copyToClipboard(text, "WhatsApp message copied!");
                   };
 
                   return (
                     <tr key={`${row.contractNo || 'row'}-${idx}`} style={{ backgroundColor, color: textColor }}>
-                      <td style={{...cellStyle, minWidth: 50}}>
+                      <td style={{...cellStyle}}>
                         <span onClick={copyIndexText} style={{ cursor: row.type === 'open' ? 'pointer' : 'default', color: '#6a1b9a', fontWeight: 'bold', textDecoration: row.type === 'open' ? 'underline' : 'none' }} title="Click to copy WhatsApp message">
                             {idx + 1}
                         </span>
                       </td>
                       {headersToShow.map((headerKey) => {
-                        const value = row[headerKey] || '';
-                        
+                        let value = row[headerKey] || '';
                         let content = value;
-                        if (headerKey === 'contractType') {
-                            content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
-                        } else if (row.type === 'open') {
-                            if (headerKey === 'phoneNumber') {
-                                content = <a href={`https://wa.me/${value.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'none', fontWeight: 'bold' }}>{value}</a>;
-                            } else if (headerKey === 'contractNo') {
-                                content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
-                            } else if (headerKey === 'bookingNumber') {
-                                content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                        
+                        // Show repair status for 'mismatch' and 'switchback' filters in the 'invygoModel' column
+                        if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
+                            const days = getDaysSinceLatestIn(row); // This function uses invygoPlate
+                            if (days !== '') {
+                                content = (
+                                    <span>
+                                        {value}
+                                        <span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>
+                                            (Repaired: {days} days ago)
+                                        </span>
+                                    </span>
+                                );
                             }
+                        } else if (headerKey === 'contractType') {
+                          content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
+                        } else if (row.type === 'open') {
+                          if (headerKey === 'phoneNumber') {
+                            content = <a href={`https://wa.me/${value.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'none', fontWeight: 'bold' }}>{value}</a>;
+                          } else if (headerKey === 'contractNo') {
+                            content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          } else if (headerKey === 'bookingNumber') {
+                            content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          }
                         }
 
                         return (
-                            <td key={headerKey} style={{...cellStyle, minWidth: columnWidths[headerKey] || 120 }} title={value}>
-                               {content}
-                               {isDuplicated && headerKey === 'invygoPlate' && (
-                                    <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
-                                        ⚠️ Rented to: {
-                                            (() => {
-                                                const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
-                                                if (!other) return 'N/A';
-                                                return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
-                                            })()
-                                        }
-                                    </div>
-                                )}
-                            </td>
+                          <td key={headerKey} style={{...cellStyle }} title={value}>
+                              {content}
+                              {isDuplicated && headerKey === 'invygoPlate' && (
+                                <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
+                                  ⚠️ Rented to: {
+                                    (() => {
+                                      const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
+                                      if (!other) return 'N/A';
+                                      return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
+                                    })()
+                                  }
+                                </div>
+                              )}
+                          </td>
                         );
                       })}
                     </tr>
@@ -502,6 +674,7 @@ export default function ContractsTable() {
       {showModal && (
         <ContractModal contract={selectedContract} onClose={() => setShowModal(false)} />
       )}
+      <Toast message={toastMessage} show={showToast} />
     </div>
   );
 }
