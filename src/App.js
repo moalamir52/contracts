@@ -202,7 +202,19 @@ export default function ContractsTable() {
     }
   };
 
-  const normalize = (str) => (str || "").toLowerCase().replace(/\s+/g, "").trim();
+  const normalize = (str) => {
+    if (!str) return "";
+    // Remove all non-alphanumeric characters and convert to lowercase
+    const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    // Separate letters and numbers
+    const letters = (cleanStr.match(/[a-z]/g) || []).sort().join('');
+    const numbers = (cleanStr.match(/[0-9]/g) || []).join('');
+    
+    // Return in a consistent order (numbers then sorted letters)
+    // This ensures "ABC 123" and "123 CBA" are treated as the same plate
+    return numbers + letters;
+  };
   
   const fetchSheet = async (url, viewMode) => {
       const response = await fetch(url);
@@ -303,18 +315,69 @@ export default function ContractsTable() {
       document.body.removeChild(script);
     };
   }, []);
+  
+  // Helper functions moved before useMemo to fix initialization error
+  const parseSheetDate = (dateStr) => {
+    if (!dateStr || dateStr.trim() === '') return null;
+
+    const normalizedStr = dateStr.replace(/\//g, '-');
+    const parts = normalizedStr.split('-');
+
+    if (parts.length !== 3) {
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    let [day, month, year] = parts.map(p => parseInt(p, 10));
+
+    if (isNaN(day) || isNaN(month) || isNaN(year)) {
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    if (year < 100) {
+        year += 2000;
+    }
+    
+    const d = new Date(Date.UTC(year, month - 1, day));
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const getLatestDateIn = (row) => {
+    if (!row || !maintenanceData || !row.invygoPlate) return null;
+
+    const vehicleRecords = maintenanceData.filter(m => normalize(m["Vehicle"]) === normalize(row.invygoPlate));
+    if (vehicleRecords.length === 0) return null;
+
+    const datesIn = vehicleRecords
+        .map(r => parseSheetDate(r["Date IN"]))
+        .filter(Boolean);
+
+    const datesOut = vehicleRecords
+        .map(r => parseSheetDate(r["Date OUT"]))
+        .filter(Boolean);
+
+    if (datesIn.length === 0) {
+        // No completed repairs found
+        return null;
+    }
+
+    const latestDateIn = new Date(Math.max(...datesIn.map(d => d.getTime())));
+    const latestDateOut = datesOut.length > 0 ? new Date(Math.max(...datesOut.map(d => d.getTime()))) : null;
+
+    // If the car went out for maintenance *after* it last came in, it's not considered repaired.
+    if (latestDateOut && latestDateOut > latestDateIn) {
+        return null;
+    }
+
+    return latestDateIn;
+  };
 
   const isMismatch = (row) => {
     const isNumeric = !isNaN(Number(row.bookingNumber));
     const ejar = normalize(row.ejarPlate);
     const invygo = normalize(row.invygoPlate);
     return isNumeric && ejar && invygo && ejar !== invygo;
-  };
-
-  const isCompleted = (row) => {
-    const invygo = normalize(row.invygoPlate);
-    const record = maintenanceData.find(m => normalize(m["Vehicle"]) === invygo);
-    return record && !!record["Date IN"];
   };
 
   const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount } = useMemo(() => {
@@ -326,7 +389,7 @@ export default function ContractsTable() {
     }, {});
 
     const mismatchRows = openContracts.filter(isMismatch);
-    const switchbackRows = mismatchRows.filter(row => isMismatch(row) && isCompleted(row));
+    const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row));
 
     let dataToDisplay;
     if (searchTerm.trim() === '') {
@@ -432,55 +495,8 @@ export default function ContractsTable() {
 
   return headersConfig.master.filter(key => populatedKeys.has(key));
   };
-
+  
   const headersToShow = getHeadersForData(filteredData);
-  // Function to find the latest "Date IN" for a vehicle
-  const getLatestDateIn = (row) => {
-    if (!row || !maintenanceData || !row.invygoPlate) return '';
-    const records = maintenanceData.filter(m => normalize(m["Vehicle"]) === normalize(row.invygoPlate) && m["Date IN"]);
-    if (records.length === 0) return '';
-    
-    // Convert all date strings to Date objects, supporting various formats
-    const dates = records.map(r => {
-        const str = r["Date IN"];
-        if (!str || str.trim() === '') return null;
-
-        // Normalize separator to '-'
-        const normalizedStr = str.replace(/\//g, '-');
-        const parts = normalizedStr.split('-');
-
-        if (parts.length !== 3) {
-            // Attempt to parse other formats
-            const d = new Date(str);
-            return isNaN(d.getTime()) ? null : d;
-        }
-
-        // Assume DD-MM-YYYY based on original code
-        let [day, month, year] = parts.map(p => parseInt(p, 10));
-
-        // Check for parsing errors
-        if (isNaN(day) || isNaN(month) || isNaN(year)) {
-            const d = new Date(str);
-            return isNaN(d.getTime()) ? null : d;
-        }
-
-        // Handle two-digit year
-        if (year < 100) {
-            year += 2000;
-        }
-
-        // Date object month is 0-indexed
-        const d = new Date(Date.UTC(year, month - 1, day));
-
-        // Final validity check
-        return isNaN(d.getTime()) ? null : d;
-    }).filter(Boolean);
-
-    if (dates.length === 0) return '';
-    // Find the most recent date
-    const latest = new Date(Math.max(...dates.map(d => d.getTime())));
-    return latest;
-  };
 
   // Function to calculate days since the latest "Date IN"
   const getDaysSinceLatestIn = (row) => {
@@ -586,10 +602,10 @@ export default function ContractsTable() {
                 {filteredData.map((row, idx) => {
                   const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
                   const mismatch = row.type === 'open' && isMismatch(row);
-                  const completed = mismatch && isCompleted(row);
+                  const isCarRepaired = mismatch && getLatestDateIn(row);
                   
                   const backgroundColor = isDuplicated ? "#ff0800"
-                    : completed ? "#ccffcc"
+                    : isCarRepaired ? "#ccffcc"
                     : mismatch ? "#ffcccc"
                     : idx % 2 === 0 ? "#fffde7"
                     : "#ffffff";
