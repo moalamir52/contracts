@@ -388,8 +388,27 @@ export default function ContractsTable() {
     const invygo = normalize(row.invygoPlate);
     return isNumeric && ejar && invygo && ejar !== invygo;
   };
+  
+  // ✅ FIX: Re-added the missing helper function
+  const getDaysSinceLatestIn = (row) => {
+    const latestDate = getLatestDateIn(row);
+    if (!latestDate) return '';
+    const today = new Date();
+    const diffTime = today.getTime() - latestDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : '';
+  };
 
-  const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount } = useMemo(() => {
+  // ✅ MODIFIED: This hook now separates search results into open and closed contracts.
+  const { 
+    filteredData, 
+    mismatchCount, 
+    switchbackCount, 
+    invygoCounts, 
+    openContractsCount,
+    searchedOpenContracts,
+    searchedClosedContracts 
+  } = useMemo(() => {
     const openContracts = allContracts.filter(c => c.type === 'open');
     const invygoCounts = openContracts.reduce((acc, row) => {
       const plate = normalize(row.invygoPlate);
@@ -400,19 +419,24 @@ export default function ContractsTable() {
     const mismatchRows = openContracts.filter(isMismatch);
     const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row));
 
-    let dataToDisplay;
+    let dataToDisplay = [];
+    let searchedOpen = [];
+    let searchedClosed = [];
+
     if (searchTerm.trim() === '') {
         if (filterMode === "mismatch") dataToDisplay = mismatchRows;
         else if (filterMode === "switchback") dataToDisplay = switchbackRows;
         else dataToDisplay = openContracts;
     } else {
-        // ✅ FIX: Search logic now checks all values in each row.
         const s = searchTerm.trim().toLowerCase();
-        dataToDisplay = allContracts.filter(row =>
+        const searchResults = allContracts.filter(row =>
             Object.values(row).some(
                 val => val && val.toString().toLowerCase().includes(s)
             )
         );
+        searchedOpen = searchResults.filter(c => c.type === 'open');
+        searchedClosed = searchResults.filter(c => c.type !== 'open');
+        dataToDisplay = searchResults; // Keep this for the export function
     }
 
     return {
@@ -420,7 +444,9 @@ export default function ContractsTable() {
       mismatchCount: mismatchRows.length,
       switchbackCount: switchbackRows.length,
       invygoCounts,
-      openContractsCount: openContracts.length
+      openContractsCount: openContracts.length,
+      searchedOpenContracts: searchedOpen,
+      searchedClosedContracts: searchedClosed
     };
   }, [allContracts, maintenanceData, searchTerm, filterMode]);
 
@@ -481,39 +507,29 @@ export default function ContractsTable() {
   };
 
   // Determine which columns to show based on the filter
-  const getHeadersForData = (data) => {
-  if (filterMode === "switchback" && searchTerm.trim() === '') return headersConfig.switchback;
-  if (searchTerm.trim() === '') return headersConfig.open;
+  const getHeadersForData = (data, type = 'open') => {
+    if (searchTerm.trim() === '' && filterMode === "switchback") return headersConfig.switchback;
+    if (searchTerm.trim() === '' && filterMode !== "all") return headersConfig.open;
 
-  if (data.length === 0) return headersConfig.open;
-
-  const populatedKeys = new Set(['contractNo']); // Always show contract number
-  data.forEach(row => {
-    for (const key in row) {
-      if (row[key] && key !== 'type') {
-        populatedKeys.add(key);
-      }
+    if (data.length === 0) {
+        return type === 'open' ? headersConfig.open : headersConfig.closed_other;
     }
-  });
 
-  // If search is active, always include the contractType column for clarity
-  if (searchTerm.trim() !== '') {
-    populatedKeys.add('contractType');
-  }
+    const populatedKeys = new Set(['contractNo']); // Always show contract number
+    data.forEach(row => {
+        for (const key in row) {
+            if (row[key] && key !== 'type') {
+                populatedKeys.add(key);
+            }
+        }
+    });
+    
+    // If search is active, always include the contractType column for clarity
+    if (searchTerm.trim() !== '') {
+        populatedKeys.add('contractType');
+    }
 
-  return headersConfig.master.filter(key => populatedKeys.has(key));
-  };
-  
-  const headersToShow = getHeadersForData(filteredData);
-
-  // Function to calculate days since the latest "Date IN"
-  const getDaysSinceLatestIn = (row) => {
-    const latestDate = getLatestDateIn(row);
-    if (!latestDate) return '';
-    const today = new Date();
-    const diffTime = today.getTime() - latestDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 ? diffDays : '';
+    return headersConfig.master.filter(key => populatedKeys.has(key));
   };
   
   const buttonStyle = {
@@ -528,16 +544,112 @@ export default function ContractsTable() {
       cursor: 'not-allowed'
   };
 
+  // ✅ NEW: Reusable table rendering component to avoid code duplication
+  const DataTable = ({ data, headers, title }) => (
+    <div style={{marginBottom: '40px'}}>
+      {title && <h2 style={{ color: '#6a1b9a', borderBottom: '2px solid #ffd600', paddingBottom: '8px', marginBottom: '16px' }}>{title} ({data.length})</h2>}
+      {data.length === 0 ? (
+        <p style={{ textAlign: 'center', color: '#555', padding: '20px' }}>No contracts found for your criteria.</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: 'fixed', margin: "0 auto" }}>
+              <thead style={{ backgroundColor: "#ffd600" }}>
+                <tr>
+                  <th style={{...cellStyle, width: 50, position: 'relative'}}>#<ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} /></th>
+                  {headers.map((headerKey) => (
+                    <th key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 120, position: 'relative' }}>
+                      {headerDisplayNames[headerKey] || headerKey}
+                      <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row, idx) => {
+                  const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
+                  const mismatch = row.type === 'open' && isMismatch(row);
+                  const isCarRepaired = mismatch && getLatestDateIn(row);
+                  
+                  const backgroundColor = isDuplicated ? "#ff0800"
+                    : isCarRepaired ? "#ccffcc"
+                    : mismatch ? "#ffcccc"
+                    : idx % 2 === 0 ? "#fffde7"
+                    : "#ffffff";
+                  
+                  const textColor = isDuplicated ? "#fff" : undefined;
+
+                  const copyIndexText = () => {
+                      if (row.type !== 'open') return;
+                      const firstName = (row.customer || "").split(" ")[0];
+                      const phone = row.phoneNumber || "";
+                      let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
+                      if (filterMode === "switchback") {
+                          text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
+                      }
+                      copyToClipboard(text, "WhatsApp message copied!");
+                  };
+
+                  return (
+                    <tr key={`${row.contractNo || 'row'}-${idx}`} style={{ backgroundColor, color: textColor }}>
+                      <td style={{...cellStyle}}>
+                        <span onClick={copyIndexText} style={{ cursor: row.type === 'open' ? 'pointer' : 'default', color: '#6a1b9a', fontWeight: 'bold', textDecoration: row.type === 'open' ? 'underline' : 'none' }} title="Click to copy WhatsApp message">
+                            {idx + 1}
+                        </span>
+                      </td>
+                      {headers.map((headerKey) => {
+                        let value = row[headerKey] || '';
+                        let content = value;
+                        const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
+                        
+                        if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
+                            const days = getDaysSinceLatestIn(row);
+                            if (days !== '') {
+                                content = (<span>{value}<span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>(Repaired: {days} days ago)</span></span>);
+                            }
+                        } else if (headerKey === 'contractType') {
+                          content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
+                        } else if (row.type === 'open') {
+                          if (headerKey === 'phoneNumber') {
+                            content = <a href={`https://wa.me/${value.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'none', fontWeight: 'bold' }}>{value}</a>;
+                          } else if (headerKey === 'contractNo') {
+                            content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          } else if (headerKey === 'bookingNumber') {
+                            content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          }
+                        }
+
+                        return (
+                          <td key={headerKey} style={{...cellStyle }} title={value}>
+                              {content}
+                              {isDuplicated && headerKey === 'invygoPlate' && (
+                                <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
+                                  ⚠️ Rented to: {
+                                    (() => {
+                                      const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
+                                      if (!other) return 'N/A';
+                                      return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
+                                    })()
+                                  }
+                                </div>
+                              )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+        </div>
+      )}
+    </div>
+  );
+
   const cellStyle = {
     border: "1px solid #ccc", padding: "4px 6px", textAlign: "center",
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
   };
   
-  const contractTypeDisplay = {
-      open: 'Open',
-      closed_invygo: 'Closed (Invygo)',
-      closed_other: 'Closed (Other)'
-  };
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
       <a
@@ -579,118 +691,29 @@ export default function ContractsTable() {
             <button style={!xlsxReady ? disabledButtonStyle : buttonStyle} onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-            <button style={buttonStyle} onClick={() => setFilterMode("all")}>📋 All ({openContractsCount})</button>
-            <button style={buttonStyle} onClick={() => setFilterMode("mismatch")}>♻️ Replacements ({mismatchCount})</button>
-            <button style={buttonStyle} onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({switchbackCount})</button>
-        </div>
+        {/* ✅ MODIFIED: Conditional rendering for filter buttons */}
+        {searchTerm.trim() === '' && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+                <button style={buttonStyle} onClick={() => setFilterMode("all")}>📋 All ({openContractsCount})</button>
+                <button style={buttonStyle} onClick={() => setFilterMode("mismatch")}>♻️ Replacements ({mismatchCount})</button>
+                <button style={buttonStyle} onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({switchbackCount})</button>
+            </div>
+        )}
 
         {loading ? (
           <p style={{ textAlign: 'center', fontWeight: 'bold', color: '#6a1b9a', fontSize: '1.2em' }}>Loading all contracts...</p>
         ) : error ? (
           <p style={{ color: "red", textAlign: 'center', fontWeight: 'bold' }}>{error}</p>
         ) : (
-          <div id="contracts-table-container" style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: 'fixed', margin: "0 auto" }}>
-              <thead style={{ backgroundColor: "#ffd600" }}>
-                <tr>
-                  <th style={{...cellStyle, width: 50, position: 'relative'}}>
-                    #
-                    <ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} />
-                  </th>
-                  {headersToShow.map((headerKey) => (
-                    <th key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 120, position: 'relative' }}>
-                      {headerDisplayNames[headerKey] || headerKey}
-                      <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((row, idx) => {
-                  const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
-                  const mismatch = row.type === 'open' && isMismatch(row);
-                  const isCarRepaired = mismatch && getLatestDateIn(row);
-                  
-                  const backgroundColor = isDuplicated ? "#ff0800"
-                    : isCarRepaired ? "#ccffcc"
-                    : mismatch ? "#ffcccc"
-                    : idx % 2 === 0 ? "#fffde7"
-                    : "#ffffff";
-                  
-                  const textColor = isDuplicated ? "#fff" : undefined;
-
-                  const copyIndexText = () => {
-                      if (row.type !== 'open') return;
-                      const firstName = (row.customer || "").split(" ")[0];
-                      const phone = row.phoneNumber || "";
-                      let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
-                      if (filterMode === "switchback") {
-                          text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
-                      }
-                      copyToClipboard(text, "WhatsApp message copied!");
-                  };
-
-                  return (
-                    <tr key={`${row.contractNo || 'row'}-${idx}`} style={{ backgroundColor, color: textColor }}>
-                      <td style={{...cellStyle}}>
-                        <span onClick={copyIndexText} style={{ cursor: row.type === 'open' ? 'pointer' : 'default', color: '#6a1b9a', fontWeight: 'bold', textDecoration: row.type === 'open' ? 'underline' : 'none' }} title="Click to copy WhatsApp message">
-                            {idx + 1}
-                        </span>
-                      </td>
-                      {headersToShow.map((headerKey) => {
-                        let value = row[headerKey] || '';
-                        let content = value;
-                        
-                        // Show repair status for 'mismatch' and 'switchback' filters in the 'invygoModel' column
-                        if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
-                            const days = getDaysSinceLatestIn(row); // This function uses invygoPlate
-                            if (days !== '') {
-                                content = (
-                                    <span>
-                                        {value}
-                                        <span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>
-                                            (Repaired: {days} days ago)
-                                        </span>
-                                    </span>
-                                );
-                            }
-                        } else if (headerKey === 'contractType') {
-                          content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
-                        } else if (row.type === 'open') {
-                          if (headerKey === 'phoneNumber') {
-                            content = <a href={`https://wa.me/${value.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'none', fontWeight: 'bold' }}>{value}</a>;
-                          } else if (headerKey === 'contractNo') {
-                            content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
-                          } else if (headerKey === 'bookingNumber') {
-                            content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
-                          }
-                        }
-
-                        return (
-                          <td key={headerKey} style={{...cellStyle }} title={value}>
-                              {content}
-                              {isDuplicated && headerKey === 'invygoPlate' && (
-                                <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
-                                  ⚠️ Rented to: {
-                                    (() => {
-                                      const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
-                                      if (!other) return 'N/A';
-                                      return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
-                                    })()
-                                  }
-                                </div>
-                              )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {filteredData.length === 0 && !loading && (
-                <p style={{ textAlign: 'center', color: '#555', padding: '20px' }}>No contracts found for your criteria.</p>
+          <div id="contracts-table-container">
+            {/* ✅ MODIFIED: Conditional rendering for search results */}
+            {searchTerm.trim() !== '' ? (
+                <>
+                    <DataTable data={searchedOpenContracts} headers={getHeadersForData(searchedOpenContracts, 'open')} title="Open Contracts" />
+                    <DataTable data={searchedClosedContracts} headers={getHeadersForData(searchedClosedContracts, 'closed_other')} title="Closed Contracts" />
+                </>
+            ) : (
+                <DataTable data={filteredData} headers={getHeadersForData(filteredData)} />
             )}
           </div>
         )}
