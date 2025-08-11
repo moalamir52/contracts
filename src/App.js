@@ -218,6 +218,9 @@ export default function ContractsTable() {
   
   const fetchSheet = async (url, viewMode) => {
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch sheet: ${response.statusText}`);
+      }
       const text = await response.text();
       const rows = text.split("\n").map((r) => r.split(",").map(c => c.trim().replace(/^"|"$/g, '')));
       const headerIndex = rows.findIndex(row => row.some(cell => cell));
@@ -283,10 +286,14 @@ export default function ContractsTable() {
     const loadAllData = async () => {
         setLoading(true);
         try {
-            const openContractsUrl = "https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=769459790";
-            const closedInvygoUrl = "https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=1830448171";
-            const closedOtherUrl = "https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=375289726";
-            const maintenanceUrl = "https://docs.google.com/spreadsheets/d/1v4rQWn6dYPVQPd-PkhvrDNgKVnexilrR2XIUVa5RKEM/export?format=csv&gid=0";
+            // ✅ FIX: Using a different CORS proxy to prevent cross-origin errors.
+            const PROXY_URL = 'https://corsproxy.io/?';
+            const encode = (url) => PROXY_URL + encodeURIComponent(url);
+
+            const openContractsUrl = encode("https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=769459790");
+            const closedInvygoUrl = encode("https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=1830448171");
+            const closedOtherUrl = encode("https://docs.google.com/spreadsheets/d/1XwBko5v8zOdTdv-By8HK_DvZnYT2T12mBw_SIbCfMkE/export?format=csv&gid=375289726");
+            const maintenanceUrl = encode("https://docs.google.com/spreadsheets/d/1v4rQWn6dYPVQPd-PkhvrDNgKVnexilrR2XIUVa5RKEM/export?format=csv&gid=0");
 
             const [openRaw, closedInvygoRaw, closedOtherRaw, maintenanceRaw] = await Promise.all([
                 fetchSheet(openContractsUrl, 'open'),
@@ -302,7 +309,9 @@ export default function ContractsTable() {
             setAllContracts([...normalizedOpen, ...normalizedClosedInvygo, ...normalizedClosedOther]);
             setMaintenanceData(maintenanceRaw);
         } catch (err) {
-            setError("Failed to load data.");
+            // ✅ FIX: Improved error logging and user feedback.
+            console.error("Failed to load data from Google Sheets:", err);
+            setError(`Failed to load data. Please check your internet connection. Error: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -397,14 +406,13 @@ export default function ContractsTable() {
         else if (filterMode === "switchback") dataToDisplay = switchbackRows;
         else dataToDisplay = openContracts;
     } else {
-        const normalizedSearch = normalize(searchTerm);
-        const idFields = ['contractNo', 'bookingNumber', 'invygoPlate', 'ejarPlate', 'phoneNumber'];
-        
-        dataToDisplay = allContracts.filter(row => {
-            const hasIdMatch = idFields.some(key => normalize(row[key] || '').startsWith(normalizedSearch));
-            const hasCustomerMatch = normalize(row['customer'] || '').includes(normalizedSearch);
-            return hasIdMatch || hasCustomerMatch;
-        });
+        // ✅ FIX: Search logic now checks all values in each row.
+        const s = searchTerm.trim().toLowerCase();
+        dataToDisplay = allContracts.filter(row =>
+            Object.values(row).some(
+                val => val && val.toString().toLowerCase().includes(s)
+            )
+        );
     }
 
     return {
