@@ -29,6 +29,7 @@ function Toast({ message, show }) {
 // Resizer component for table columns
 function ColumnResizer({ onResize }) {
   const handleMouseDown = (e) => {
+    // Prevent text selection and other default behaviors
     e.preventDefault();
     e.stopPropagation();
 
@@ -38,20 +39,25 @@ function ColumnResizer({ onResize }) {
 
     const handleMouseMove = (moveEvent) => {
       const newWidth = startWidth + (moveEvent.pageX - startX);
+      // Enforce a minimum width for columns
       if (newWidth > 60) {
         onResize(newWidth);
       }
     };
 
     const handleMouseUp = () => {
+      // Clean up event listeners
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      // Reset body styles
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
     };
 
+    // Add listeners to the document to capture mouse movement anywhere on the page
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    // Change body cursor to indicate resizing
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };
@@ -64,7 +70,7 @@ function ColumnResizer({ onResize }) {
         right: 0,
         top: 0,
         height: '100%',
-        width: '8px',
+        width: '8px', // A slightly wider, more user-friendly handle
         cursor: 'col-resize',
         zIndex: 10,
       }}
@@ -77,6 +83,7 @@ function ColumnResizer({ onResize }) {
 function ContractModal({ contract, onClose }) {
   if (!contract) return null;
 
+  // We convert the internal keys back to display-friendly names for the modal
   const displayNames = {
     contractNo: 'Contract No.',
     bookingNumber: 'Booking Number',
@@ -95,12 +102,14 @@ function ContractModal({ contract, onClose }) {
     contractType: 'Contract Type'
   };
 
+  // Create a display-friendly version of the contract object
   const finalDisplayContract = {};
   for(const key in contract) {
     if(displayNames[key] && contract[key]) {
       finalDisplayContract[displayNames[key]] = contract[key];
     }
   }
+
 
   return (
     <div
@@ -144,64 +153,9 @@ function ContractModal({ contract, onClose }) {
   );
 }
 
-// Dropdown menu for phone number actions
-function DropdownMenu({ options, position, onClose }) {
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (!event.target.closest('.phone-dropdown-menu')) {
-                onClose();
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [onClose]);
-
-    if (!position) return null;
-
-    return (
-        <div
-            className="phone-dropdown-menu"
-            style={{
-                position: 'fixed',
-                top: `${position.top}px`,
-                left: `${position.left}px`,
-                backgroundColor: 'white',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
-                zIndex: 10001,
-                padding: '5px 0',
-                minWidth: '200px',
-            }}
-        >
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                {options.map((option, index) => (
-                    <li
-                        key={index}
-                        onClick={() => { option.action(); onClose(); }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                        style={{
-                            padding: '10px 15px',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            color: '#333',
-                            fontSize: '14px',
-                            transition: 'background-color 0.2s'
-                        }}
-                    >
-                        {option.label}
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-}
-
 // Main component for the contracts table
 export default function ContractsTable() {
+  // State management
   const [allContracts, setAllContracts] = useState([]);
   const [maintenanceData, setMaintenanceData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,13 +167,11 @@ export default function ContractsTable() {
   const [xlsxReady, setXlsxReady] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [dropdown, setDropdown] = useState({ visible: false, row: null, position: null });
   
   const [columnWidths, setColumnWidths] = useState({
-      customer: 220, contractNo: 160, invygoPlate: 150, 
-      ejarPlate: 150, phoneNumber: 150, invygoModel: 200, 
-      ejarModel: 200, bookingNumber: 150, contractType: 140, 
-      pickupBranch: 160, contact: 150, model1: 180,
+      customer: 180, contractNo: 160, invygoPlate: 150, 
+      ejarPlate: 150, phoneNumber: 130, invygoModel: 180, 
+      ejarModel: 180, bookingNumber: 130, contractType: 140, pickupBranch: 140
   });
 
   const handleColumnResize = (headerKey, newWidth) => {
@@ -252,9 +204,15 @@ export default function ContractsTable() {
 
   const normalize = (str) => {
     if (!str) return "";
+    // Remove all non-alphanumeric characters and convert to lowercase
     const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    // Separate letters and numbers
     const letters = (cleanStr.match(/[a-z]/g) || []).sort().join('');
     const numbers = (cleanStr.match(/[0-9]/g) || []).join('');
+    
+    // Return in a consistent order (numbers then sorted letters)
+    // This ensures "ABC 123" and "123 CBA" are treated as the same plate
     return numbers + letters;
   };
   
@@ -267,7 +225,7 @@ export default function ContractsTable() {
       const rows = text.split("\n").map((r) => r.split(",").map(c => c.trim().replace(/^"|"$/g, '')));
       const headerIndex = rows.findIndex(row => row.some(cell => cell));
       if (headerIndex === -1) return [];
-      const headers = rows[headerIndex].map(h => h.trim());
+      const headers = rows[headerIndex].map(h => h.trim()); // FIX: Trim whitespace from headers
       const dataRows = rows.slice(headerIndex + 1);
       
       if (viewMode === 'closed_invygo' || viewMode === 'closed_other') {
@@ -291,7 +249,7 @@ export default function ContractsTable() {
               }
           }
           return processedData;
-      } else {
+      } else { // Handles 'open'
           return dataRows
               .filter(r => r.length === headers.length && r.some(c => c))
               .map(r => Object.fromEntries(r.map((c, i) => [headers[i], c])));
@@ -301,7 +259,7 @@ export default function ContractsTable() {
   const normalizeData = (rawData, viewMode) => {
       const mapping = columnMappings[viewMode];
       return rawData.map(rawRow => {
-          const normalizedRow = { type: viewMode };
+          const normalizedRow = { type: viewMode }; // Keep the specific viewMode as type
           for (const header in mapping) {
               const internalKey = mapping[header];
               normalizedRow[internalKey] = rawRow[header];
@@ -316,15 +274,19 @@ export default function ContractsTable() {
   };
 
   useEffect(() => {
+    // Dynamically load the SheetJS/XLSX library
     const script = document.createElement('script');
     script.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
     script.async = true;
-    script.onload = () => setXlsxReady(true);
+    script.onload = () => {
+      setXlsxReady(true);
+    };
     document.body.appendChild(script);
 
     const loadAllData = async () => {
         setLoading(true);
         try {
+            // ✅ FIX: Using a different CORS proxy to prevent cross-origin errors.
             const PROXY_URL = 'https://corsproxy.io/?';
             const encode = (url) => PROXY_URL + encodeURIComponent(url);
 
@@ -347,6 +309,7 @@ export default function ContractsTable() {
             setAllContracts([...normalizedOpen, ...normalizedClosedInvygo, ...normalizedClosedOther]);
             setMaintenanceData(maintenanceRaw);
         } catch (err) {
+            // ✅ FIX: Improved error logging and user feedback.
             console.error("Failed to load data from Google Sheets:", err);
             setError(`Failed to load data. Please check your internet connection. Error: ${err.message}`);
         } finally {
@@ -355,37 +318,67 @@ export default function ContractsTable() {
     };
 
     loadAllData();
-    return () => document.body.removeChild(script);
+
+    // Cleanup the script when the component unmounts
+    return () => {
+      document.body.removeChild(script);
+    };
   }, []);
   
+  // Helper functions moved before useMemo to fix initialization error
   const parseSheetDate = (dateStr) => {
     if (!dateStr || dateStr.trim() === '') return null;
+
     const normalizedStr = dateStr.replace(/\//g, '-');
     const parts = normalizedStr.split('-');
+
     if (parts.length !== 3) {
         const d = new Date(dateStr);
         return isNaN(d.getTime()) ? null : d;
     }
+
     let [day, month, year] = parts.map(p => parseInt(p, 10));
+
     if (isNaN(day) || isNaN(month) || isNaN(year)) {
         const d = new Date(dateStr);
         return isNaN(d.getTime()) ? null : d;
     }
-    if (year < 100) year += 2000;
+
+    if (year < 100) {
+        year += 2000;
+    }
+    
     const d = new Date(Date.UTC(year, month - 1, day));
     return isNaN(d.getTime()) ? null : d;
   };
 
   const getLatestDateIn = (row) => {
     if (!row || !maintenanceData || !row.invygoPlate) return null;
+
     const vehicleRecords = maintenanceData.filter(m => normalize(m["Vehicle"]) === normalize(row.invygoPlate));
     if (vehicleRecords.length === 0) return null;
-    const datesIn = vehicleRecords.map(r => parseSheetDate(r["Date IN"])).filter(Boolean);
-    const datesOut = vehicleRecords.map(r => parseSheetDate(r["Date OUT"])).filter(Boolean);
-    if (datesIn.length === 0) return null;
+
+    const datesIn = vehicleRecords
+        .map(r => parseSheetDate(r["Date IN"]))
+        .filter(Boolean);
+
+    const datesOut = vehicleRecords
+        .map(r => parseSheetDate(r["Date OUT"]))
+        .filter(Boolean);
+
+    if (datesIn.length === 0) {
+        // No completed repairs found
+        return null;
+    }
+
     const latestDateIn = new Date(Math.max(...datesIn.map(d => d.getTime())));
     const latestDateOut = datesOut.length > 0 ? new Date(Math.max(...datesOut.map(d => d.getTime()))) : null;
-    if (latestDateOut && latestDateOut > latestDateIn) return null;
+
+    // If the car went out for maintenance *after* it last came in, it's not considered repaired.
+    if (latestDateOut && latestDateOut > latestDateIn) {
+        return null;
+    }
+
     return latestDateIn;
   };
 
@@ -394,15 +387,6 @@ export default function ContractsTable() {
     const ejar = normalize(row.ejarPlate);
     const invygo = normalize(row.invygoPlate);
     return isNumeric && ejar && invygo && ejar !== invygo;
-  };
-  
-  const getDaysSinceLatestIn = (row) => {
-    const latestDate = getLatestDateIn(row);
-    if (!latestDate) return '';
-    const today = new Date();
-    const diffTime = today.getTime() - latestDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 ? diffDays : '';
   };
 
   const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount } = useMemo(() => {
@@ -422,6 +406,7 @@ export default function ContractsTable() {
         else if (filterMode === "switchback") dataToDisplay = switchbackRows;
         else dataToDisplay = openContracts;
     } else {
+        // ✅ FIX: Search logic now checks all values in each row.
         const s = searchTerm.trim().toLowerCase();
         dataToDisplay = allContracts.filter(row =>
             Object.values(row).some(
@@ -442,13 +427,16 @@ export default function ContractsTable() {
   const showToastNotification = (message) => {
     setToastMessage(message);
     setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    setTimeout(() => {
+        setShowToast(false);
+    }, 3000); // Hide after 3 seconds
   };
 
+  // Use legacy copy command for better compatibility in sandboxed environments
   const copyToClipboard = (text, message = "Copied to clipboard!") => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
-    textArea.style.position = "fixed";
+    textArea.style.position = "fixed"; // Make it invisible
     textArea.style.top = "-9999px";
     textArea.style.left = "-9999px";
     document.body.appendChild(textArea);
@@ -464,51 +452,6 @@ export default function ContractsTable() {
     document.body.removeChild(textArea);
   };
 
-    const handlePhoneClick = (e, row) => {
-        e.preventDefault();
-        const rect = e.currentTarget.getBoundingClientRect();
-        setDropdown({
-            visible: true,
-            row: row,
-            position: { top: rect.bottom + 5, left: rect.left }
-        });
-    };
-
-    const closeDropdown = () => {
-        setDropdown({ visible: false, row: null, position: null });
-    };
-
-    const normalizePhoneNumber = (phone) => {
-        if (!phone) return '';
-        let cleaned = phone.replace(/\D/g, '');
-        if (cleaned.startsWith('05') && cleaned.length === 10) return `971${cleaned.substring(1)}`;
-        if (cleaned.startsWith('971') && cleaned.length === 12) return cleaned;
-        return cleaned;
-    };
-
-    const copyAndOpenWhatsApp = (row, messageTemplate, toastMessage) => {
-        const normalizedPhone = normalizePhoneNumber(row.phoneNumber);
-        const message = messageTemplate.replace('#XXXXXX', `#${row.bookingNumber}`);
-        copyToClipboard(message, toastMessage);
-        window.open(`https://wa.me/${normalizedPhone}`, "_blank");
-    };
-
-    const getDropdownOptions = (row) => [
-        { label: '1 - Open WhatsApp', action: () => window.open(`https://wa.me/${normalizePhoneNumber(row.phoneNumber)}`, "_blank") },
-        { label: '2 - Welcome Message', action: () => {
-            const template = `Good day,\n\nThis is Mohamed from Invygo Yelo Rent A Car. Regarding your booking (#XXXXXX), we have received a service request for the car.\n\nTo proceed, please send us a picture of the car's current mileage (KM) and the maintenance sticker.\n\nThank you.`;
-            copyAndOpenWhatsApp(row, template, 'Welcome message copied!');
-        }},
-        { label: '3 - Switch Back Request', action: () => {
-            const template = `Good day, this is Mohamed from Invygo – Yelo Rent A Car. Your original car is ready, and we need to switch it back as per your booking (#XXXXXX). Please let me know a suitable time today and share your location. Thank you!`;
-            copyAndOpenWhatsApp(row, template, 'Switch back request copied!');
-        }},
-        { label: '4 - Close Complaint', action: () => {
-            const template = `now i will close the request maybe you will receive schedule email please ignore it, as we need to schedule a service in order to close it in the system.`;
-            copyAndOpenWhatsApp(row, template, 'Complaint closing message copied!');
-        }}
-    ];
-
   const exportToExcel = () => {
     if (!xlsxReady || !window.XLSX) {
       console.error("XLSX library not loaded yet.");
@@ -522,7 +465,7 @@ export default function ContractsTable() {
   };
   
   const headersConfig = {
-      open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate'],
+      open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate',],
       closed_invygo: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'model1', 'ejarPlate', 'invygoModel', 'pickupDate', 'contact', 'dropoffDate'],
       closed_other: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'invygoModel', 'pickupDate', 'dropoffDate'],
       master: ['contractNo', 'contractType', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'model1', 'phoneNumber', 'pickupBranch', 'pickupDate', 'replacementDate', 'dropoffDate', 'contact'],
@@ -537,26 +480,40 @@ export default function ContractsTable() {
     model1: 'Model (Repeated)', contact: 'Contact', contractType: 'Contract Type',
   };
 
+  // Determine which columns to show based on the filter
   const getHeadersForData = (data) => {
-    if (filterMode === "switchback" && searchTerm.trim() === '') return headersConfig.switchback;
-    if (searchTerm.trim() === '' && (filterMode === "all" || filterMode === "mismatch")) return headersConfig.open;
+  if (filterMode === "switchback" && searchTerm.trim() === '') return headersConfig.switchback;
+  if (searchTerm.trim() === '') return headersConfig.open;
 
-    if (data.length === 0) return headersConfig.open;
+  if (data.length === 0) return headersConfig.open;
 
-    const populatedKeys = new Set(['contractNo']);
-    data.forEach(row => {
-        for (const key in row) {
-            if (row[key] && key !== 'type') {
-                populatedKeys.add(key);
-            }
-        }
-    });
-
-    if (searchTerm.trim() !== '') {
-        populatedKeys.add('contractType');
+  const populatedKeys = new Set(['contractNo']); // Always show contract number
+  data.forEach(row => {
+    for (const key in row) {
+      if (row[key] && key !== 'type') {
+        populatedKeys.add(key);
+      }
     }
+  });
 
-    return headersConfig.master.filter(key => populatedKeys.has(key));
+  // If search is active, always include the contractType column for clarity
+  if (searchTerm.trim() !== '') {
+    populatedKeys.add('contractType');
+  }
+
+  return headersConfig.master.filter(key => populatedKeys.has(key));
+  };
+  
+  const headersToShow = getHeadersForData(filteredData);
+
+  // Function to calculate days since the latest "Date IN"
+  const getDaysSinceLatestIn = (row) => {
+    const latestDate = getLatestDateIn(row);
+    if (!latestDate) return '';
+    const today = new Date();
+    const diffTime = today.getTime() - latestDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : '';
   };
   
   const buttonStyle = {
@@ -571,106 +528,16 @@ export default function ContractsTable() {
       cursor: 'not-allowed'
   };
 
-  const DataTable = ({ data, headers, onPhoneClick }) => (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: "collapse", tableLayout: 'fixed', margin: "0 auto" }}>
-        <thead style={{ backgroundColor: "#ffd600" }}>
-          <tr>
-            <th style={{...cellStyle, width: 50, position: 'relative'}}>#<ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} /></th>
-            {headers.map((headerKey) => (
-              <th key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 150, position: 'relative' }}>
-                {headerDisplayNames[headerKey] || headerKey}
-                <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, idx) => {
-            const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
-            const mismatch = row.type === 'open' && isMismatch(row);
-            const isCarRepaired = mismatch && getLatestDateIn(row);
-            
-            const backgroundColor = isDuplicated ? "#ff0800"
-              : isCarRepaired ? "#ccffcc"
-              : mismatch ? "#ffcccc"
-              : idx % 2 === 0 ? "#fffde7"
-              : "#ffffff";
-            
-            const textColor = isDuplicated ? "#fff" : undefined;
-
-            const copyIndexText = () => {
-                if (row.type !== 'open') return;
-                const firstName = (row.customer || "").split(" ")[0];
-                const phone = row.phoneNumber || "";
-                let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
-                if (filterMode === "switchback") {
-                    text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
-                }
-                copyToClipboard(text, "WhatsApp message copied!");
-            };
-
-            return (
-              <tr key={`${row.contractNo || 'row'}-${idx}`} style={{ backgroundColor, color: textColor }}>
-                <td style={{...cellStyle, width: 50}}>
-                  <span onClick={copyIndexText} style={{ cursor: row.type === 'open' ? 'pointer' : 'default', color: '#6a1b9a', fontWeight: 'bold', textDecoration: row.type === 'open' ? 'underline' : 'none' }} title="Click to copy WhatsApp message">
-                      {idx + 1}
-                  </span>
-                </td>
-                {headers.map((headerKey) => {
-                  let value = row[headerKey] || '';
-                  let content = value;
-                  const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
-                  
-                  if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
-                      const days = getDaysSinceLatestIn(row);
-                      if (days !== '') {
-                          content = (<span>{value}<span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>(Repaired: {days} days ago)</span></span>);
-                      }
-                  } else if (headerKey === 'contractType') {
-                    content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
-                  } else if (row.type === 'open' && headerKey === 'phoneNumber') {
-                      content = (
-                          <span onClick={(e) => onPhoneClick(e, row)} style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer' }}>
-                              {value}
-                          </span>
-                      );
-                  } else if (row.type === 'open' && headerKey === 'contractNo') {
-                    content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
-                  } else if (row.type === 'open' && headerKey === 'bookingNumber') {
-                    content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
-                  }
-
-                  return (
-                    <td key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 150 }} title={value}>
-                        {content}
-                        {isDuplicated && headerKey === 'invygoPlate' && (
-                          <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
-                            ⚠️ Rented to: {
-                              (() => {
-                                const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
-                                if (!other) return 'N/A';
-                                return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
-                              })()
-                            }
-                          </div>
-                        )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-
   const cellStyle = {
     border: "1px solid #ccc", padding: "4px 6px", textAlign: "center",
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
   };
   
+  const contractTypeDisplay = {
+      open: 'Open',
+      closed_invygo: 'Closed (Invygo)',
+      closed_other: 'Closed (Other)'
+  };
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
       <a
@@ -712,36 +579,124 @@ export default function ContractsTable() {
             <button style={!xlsxReady ? disabledButtonStyle : buttonStyle} onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
         </div>
 
-        {searchTerm.trim() === '' && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-                <button style={buttonStyle} onClick={() => setFilterMode("all")}>📋 All ({openContractsCount})</button>
-                <button style={buttonStyle} onClick={() => setFilterMode("mismatch")}>♻️ Replacements ({mismatchCount})</button>
-                <button style={buttonStyle} onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({switchbackCount})</button>
-            </div>
-        )}
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+            <button style={buttonStyle} onClick={() => setFilterMode("all")}>📋 All ({openContractsCount})</button>
+            <button style={buttonStyle} onClick={() => setFilterMode("mismatch")}>♻️ Replacements ({mismatchCount})</button>
+            <button style={buttonStyle} onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({switchbackCount})</button>
+        </div>
 
         {loading ? (
           <p style={{ textAlign: 'center', fontWeight: 'bold', color: '#6a1b9a', fontSize: '1.2em' }}>Loading all contracts...</p>
         ) : error ? (
           <p style={{ color: "red", textAlign: 'center', fontWeight: 'bold' }}>{error}</p>
         ) : (
-          <div id="contracts-table-container">
-              <DataTable data={filteredData} headers={getHeadersForData(filteredData)} onPhoneClick={handlePhoneClick} />
-              {filteredData.length === 0 && !loading && (
+          <div id="contracts-table-container" style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: 'fixed', margin: "0 auto" }}>
+              <thead style={{ backgroundColor: "#ffd600" }}>
+                <tr>
+                  <th style={{...cellStyle, width: 50, position: 'relative'}}>
+                    #
+                    <ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} />
+                  </th>
+                  {headersToShow.map((headerKey) => (
+                    <th key={headerKey} style={{...cellStyle, width: columnWidths[headerKey] || 120, position: 'relative' }}>
+                      {headerDisplayNames[headerKey] || headerKey}
+                      <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map((row, idx) => {
+                  const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
+                  const mismatch = row.type === 'open' && isMismatch(row);
+                  const isCarRepaired = mismatch && getLatestDateIn(row);
+                  
+                  const backgroundColor = isDuplicated ? "#ff0800"
+                    : isCarRepaired ? "#ccffcc"
+                    : mismatch ? "#ffcccc"
+                    : idx % 2 === 0 ? "#fffde7"
+                    : "#ffffff";
+                  
+                  const textColor = isDuplicated ? "#fff" : undefined;
+
+                  const copyIndexText = () => {
+                      if (row.type !== 'open') return;
+                      const firstName = (row.customer || "").split(" ")[0];
+                      const phone = row.phoneNumber || "";
+                      let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
+                      if (filterMode === "switchback") {
+                          text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
+                      }
+                      copyToClipboard(text, "WhatsApp message copied!");
+                  };
+
+                  return (
+                    <tr key={`${row.contractNo || 'row'}-${idx}`} style={{ backgroundColor, color: textColor }}>
+                      <td style={{...cellStyle}}>
+                        <span onClick={copyIndexText} style={{ cursor: row.type === 'open' ? 'pointer' : 'default', color: '#6a1b9a', fontWeight: 'bold', textDecoration: row.type === 'open' ? 'underline' : 'none' }} title="Click to copy WhatsApp message">
+                            {idx + 1}
+                        </span>
+                      </td>
+                      {headersToShow.map((headerKey) => {
+                        let value = row[headerKey] || '';
+                        let content = value;
+                        
+                        // Show repair status for 'mismatch' and 'switchback' filters in the 'invygoModel' column
+                        if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
+                            const days = getDaysSinceLatestIn(row); // This function uses invygoPlate
+                            if (days !== '') {
+                                content = (
+                                    <span>
+                                        {value}
+                                        <span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>
+                                            (Repaired: {days} days ago)
+                                        </span>
+                                    </span>
+                                );
+                            }
+                        } else if (headerKey === 'contractType') {
+                          content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
+                        } else if (row.type === 'open') {
+                          if (headerKey === 'phoneNumber') {
+                            content = <a href={`https://wa.me/${value.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: isDuplicated ? '#fff' : '#25D366', textDecoration: 'none', fontWeight: 'bold' }}>{value}</a>;
+                          } else if (headerKey === 'contractNo') {
+                            content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#1976d2', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          } else if (headerKey === 'bookingNumber') {
+                            content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} style={{ color: isDuplicated ? '#fff' : '#0077b5', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>{value}</a>;
+                          }
+                        }
+
+                        return (
+                          <td key={headerKey} style={{...cellStyle }} title={value}>
+                              {content}
+                              {isDuplicated && headerKey === 'invygoPlate' && (
+                                <div style={{ fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
+                                  ⚠️ Rented to: {
+                                    (() => {
+                                      const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
+                                      if (!other) return 'N/A';
+                                      return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} style={{ color: '#ffd600', background: 'none', border: 'none', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
+                                    })()
+                                  }
+                                </div>
+                              )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {filteredData.length === 0 && !loading && (
                 <p style={{ textAlign: 'center', color: '#555', padding: '20px' }}>No contracts found for your criteria.</p>
-              )}
+            )}
           </div>
         )}
       </div>
       {showModal && (
         <ContractModal contract={selectedContract} onClose={() => setShowModal(false)} />
-      )}
-      {dropdown.visible && (
-        <DropdownMenu
-            options={getDropdownOptions(dropdown.row)}
-            position={dropdown.position}
-            onClose={closeDropdown}
-        />
       )}
       <Toast message={toastMessage} show={showToast} />
     </div>
