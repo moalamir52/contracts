@@ -496,7 +496,15 @@ export default function ContractsTable() {
     const getDropdownOptions = (row) => [
         { label: '1 - Open WhatsApp', action: () => window.open(`https://wa.me/${normalizePhoneNumber(row.phoneNumber)}`, "_blank") },
         { label: '2 - Welcome Message', action: () => {
-            const template = `Good day,\n\nThis is Mohamed from Invygo Yelo Rent A Car. Regarding your booking (#XXXXXX), we have received a service request for the car.\n\nTo proceed, please send us a picture of the car's current mileage (KM) and the maintenance sticker.\n\nThank you.`;
+            const template = `Good day,\n\nThis is Mohamed from Invygo – Yelo Rent A Car. Regarding your booking (#XXXXXX), we have received a service request for the car.\n\nTo assist you as quickly as possible, please provide:
+
+* A photo of the car’s current mileage (KM)
+
+* A photo of the maintenance sticker
+
+* Any photos or details of the issue (if available)
+
+We are here to serve you, Thank you.`;
             copyAndOpenWhatsApp(row, template, 'Welcome message copied!');
         }},
         { label: '3 - Switch Back Request', action: () => {
