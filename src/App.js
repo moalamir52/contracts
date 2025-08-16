@@ -106,39 +106,50 @@ function ContractModal({ contract, onClose }) {
     <div
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex',
+        background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex',
         alignItems: 'center', justifyContent: 'center'
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: '#fff', borderRadius: 12, padding: 32, minWidth: 320,
-          maxWidth: 500, boxShadow: '0 4px 24px #0002', position: 'relative'
+          background: '#fff9e5', borderRadius: 20, width: '90%',
+          maxWidth: 550, boxShadow: '0 6px 24px rgba(0,0,0,0.25)', 
+          border: '2px solid #6a1b9a',
+          overflow: 'hidden'
         }}
         onClick={e => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute', top: 12, right: 16, background: '#ff0800',
-            color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px',
-            fontWeight: 'bold', cursor: 'pointer'
-          }}
-        >
-          X
-        </button>
-        <h2 style={{ color: '#6a1b9a', marginBottom: 16 }}>Contract Details</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            {Object.entries(finalDisplayContract).map(([key, val]) => (
-              <tr key={key}>
-                <td style={{ fontWeight: 'bold', padding: 8, borderBottom: '1px solid #eee', color: '#6a1b9a' }}>{key}</td>
-                <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{val}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            backgroundColor: '#ffd600', padding: '12px 20px',
+            borderBottom: '2px solid #6a1b9a'
+        }}>
+            <h2 style={{ color: '#6a1b9a', margin: 0, fontSize: '22px' }}>Contract Details</h2>
+            <button
+              onClick={onClose}
+              style={{
+                background: '#6a1b9a', color: '#ffd600', border: 'none', 
+                borderRadius: '50%', width: 30, height: 30,
+                fontWeight: 'bold', cursor: 'pointer', fontSize: '16px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              X
+            </button>
+        </div>
+        <div style={{padding: '20px', maxHeight: '70vh', overflowY: 'auto'}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                {Object.entries(finalDisplayContract).map(([key, val], index) => (
+                  <tr key={key} style={{ backgroundColor: index % 2 === 0 ? '#fffde7' : '#fff' }}>
+                    <td style={{ fontWeight: 'bold', padding: '10px', borderBottom: '1px solid #eee', color: '#6a1b9a', width: '40%' }}>{key}</td>
+                    <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{val}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        </div>
       </div>
     </div>
   );
@@ -219,7 +230,7 @@ export default function ContractsTable() {
       customer: 220, contractNo: 160, invygoPlate: 150, 
       ejarPlate: 150, phoneNumber: 150, invygoModel: 200, 
       ejarModel: 200, bookingNumber: 150, contractType: 140, 
-      pickupBranch: 160, contact: 150, model1: 180,
+      pickupBranch: 160, contact: 150, model1: 180, dropoffDate: 150,
   });
 
   const handleColumnResize = (headerKey, newWidth) => {
@@ -234,7 +245,7 @@ export default function ContractsTable() {
       'Contract No.': 'contractNo', 'Booking Number': 'bookingNumber', 'Customer': 'customer',
       'Model ( Ejar )': 'ejarModel', 'EJAR': 'ejarPlate', 'Model': 'invygoModel',
       'INVYGO': 'invygoPlate', 'Phone Number': 'phoneNumber', 'Pick-up Date': 'pickupDate',
-      'Replacement Date': 'replacementDate'
+      'Replacement Date': 'replacementDate', 'Drop-off Date': 'dropoffDate'
     },
     closed_invygo: {
       'Contract No.': 'contractNo', 'Booking Number': 'bookingNumber', 'Customer': 'customer',
@@ -256,6 +267,12 @@ export default function ContractsTable() {
     const letters = (cleanStr.match(/[a-z]/g) || []).sort().join('');
     const numbers = (cleanStr.match(/[0-9]/g) || []).join('');
     return numbers + letters;
+  };
+
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr || dateStr.trim() === '') return '';
+    // Takes the part before the first space, to remove the time part
+    return dateStr.split(' ')[0];
   };
   
   const fetchSheet = async (url, viewMode) => {
@@ -478,6 +495,11 @@ export default function ContractsTable() {
         setDropdown({ visible: false, row: null, position: null });
     };
 
+    const handleCustomerClick = (contract) => {
+        setSelectedContract(contract);
+        setShowModal(true);
+    };
+
     const normalizePhoneNumber = (phone) => {
         if (!phone) return '';
         let cleaned = phone.replace(/\D/g, '');
@@ -530,11 +552,11 @@ We are here to serve you, Thank you.`;
   };
   
   const headersConfig = {
-      open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate'],
+      open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate'],
       closed_invygo: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'model1', 'ejarPlate', 'invygoModel', 'pickupDate', 'contact', 'dropoffDate'],
       closed_other: ['contractNo', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'invygoModel', 'pickupDate', 'dropoffDate'],
       master: ['contractNo', 'contractType', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'model1', 'phoneNumber', 'pickupBranch', 'pickupDate', 'replacementDate', 'dropoffDate', 'contact'],
-      switchback: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate']
+      switchback: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate']
   };
 
   const headerDisplayNames = {
@@ -579,7 +601,7 @@ We are here to serve you, Thank you.`;
       cursor: 'not-allowed'
   };
 
-  const DataTable = ({ data, headers, onPhoneClick }) => (
+  const DataTable = ({ data, headers, onPhoneClick, onCustomerClick }) => (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: "collapse", tableLayout: 'fixed', margin: "0 auto" }}>
         <thead style={{ backgroundColor: "#ffd600" }}>
@@ -626,7 +648,12 @@ We are here to serve you, Thank you.`;
                   </span>
                 </td>
                 {headers.map((headerKey) => {
+                  const isDateColumn = ['pickupDate', 'dropoffDate', 'replacementDate'].includes(headerKey);
                   let value = row[headerKey] || '';
+                  if (isDateColumn) {
+                      value = formatDateForDisplay(value);
+                  }
+
                   let content = value;
                   const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
                   
@@ -635,6 +662,20 @@ We are here to serve you, Thank you.`;
                       if (days !== '') {
                           content = (<span>{value}<span style={{display: 'block', color: '#008000', fontWeight: 'bold', fontSize: '0.9em'}}>(Repaired: {days} days ago)</span></span>);
                       }
+                  } else if (headerKey === 'customer') {
+                      content = (
+                          <span 
+                              onClick={() => onCustomerClick(row)} 
+                              style={{ 
+                                  color: isDuplicated ? '#fff' : '#6a1b9a',
+                                  textDecoration: 'underline', 
+                                  fontWeight: 'bold', 
+                                  cursor: 'pointer' 
+                              }}
+                          >
+                              {value}
+                          </span>
+                      );
                   } else if (headerKey === 'contractType') {
                     content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
                   } else if (row.type === 'open' && headerKey === 'phoneNumber') {
@@ -734,7 +775,12 @@ We are here to serve you, Thank you.`;
           <p style={{ color: "red", textAlign: 'center', fontWeight: 'bold' }}>{error}</p>
         ) : (
           <div id="contracts-table-container">
-              <DataTable data={filteredData} headers={getHeadersForData(filteredData)} onPhoneClick={handlePhoneClick} />
+              <DataTable 
+                data={filteredData} 
+                headers={getHeadersForData(filteredData)} 
+                onPhoneClick={handlePhoneClick}
+                onCustomerClick={handleCustomerClick}
+              />
               {filteredData.length === 0 && !loading && (
                 <p style={{ textAlign: 'center', color: '#555', padding: '20px' }}>No contracts found for your criteria.</p>
               )}
