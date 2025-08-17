@@ -524,7 +524,7 @@ export default function ContractsTable() {
 
 * A photo of the maintenance sticker
 
-* Any photos or details of the issue (if available)
+* or details of the issue (if available)
 
 We are here to serve you, Thank you.`;
             copyAndOpenWhatsApp(row, template, 'Welcome message copied!');
