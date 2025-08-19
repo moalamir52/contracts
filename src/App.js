@@ -263,7 +263,15 @@ export default function ContractsTable() {
 
   const normalize = (str) => {
     if (!str) return "";
-    const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    let s = str.toLowerCase();
+    // Transliterate common Cyrillic look-alikes to Latin
+    s = s.replace(/а/g, 'a');
+    s = s.replace(/с/g, 'c');
+    s = s.replace(/е/g, 'e');
+    s = s.replace(/о/g, 'o');
+    s = s.replace(/р/g, 'r');
+    
+    const cleanStr = s.replace(/[^a-z0-9]/g, '');
     const letters = (cleanStr.match(/[a-z]/g) || []).sort().join('');
     const numbers = (cleanStr.match(/[0-9]/g) || []).join('');
     return numbers + letters;
@@ -281,7 +289,9 @@ export default function ContractsTable() {
         throw new Error(`Failed to fetch sheet: ${response.statusText}`);
       }
       const text = await response.text();
-      const rows = text.split("\n").map((r) => r.split(",").map(c => c.trim().replace(/^"|"$/g, '')));
+      // Regex to split by comma only if not inside quotes
+      const csvRegex = /,(?=(?:(?:[^""]*\"){2})*[^""]*$)/;
+      const rows = text.split("\n").map((r) => r.split(csvRegex).map(c => c.trim().replace(/^"|"$/g, '')));
       const headerIndex = rows.findIndex(row => row.some(cell => cell));
       if (headerIndex === -1) return [];
       const headers = rows[headerIndex].map(h => h.trim());
@@ -402,7 +412,7 @@ export default function ContractsTable() {
     if (datesIn.length === 0) return null;
     const latestDateIn = new Date(Math.max(...datesIn.map(d => d.getTime())));
     const latestDateOut = datesOut.length > 0 ? new Date(Math.max(...datesOut.map(d => d.getTime()))) : null;
-    if (latestDateOut && latestDateOut > latestDateIn) return null;
+    if (latestDateOut && latestDateOut.getTime() > latestDateIn.getTime()) return null;
     return latestDateIn;
   };
 
