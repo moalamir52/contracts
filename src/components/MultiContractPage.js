@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 
 function MultiContractPage({ 
     onBack, 
@@ -12,28 +12,69 @@ function MultiContractPage({
   const [search, setSearch] = useState("");
   const [selectedContract, setSelectedContract] = useState(null);
 
-  const normalize = str => (str || '').toString().replace(/\s+/g, '').toLowerCase();
+  const [filteredResults, setFilteredResults] = useState([]); // New state for filtered results
+    const workerRef = useRef(null); // Ref to store the worker instance
 
-  const filteredResults = useMemo(() => {
-    const sourceData = search.trim() ? allUniqueContracts : results;
-    if (!search.trim()) return sourceData;
+    // Initialize worker and handle messages
+    useEffect(() => {
+        workerRef.current = new Worker(new URL('../../src/workers/contractProcessor.js', import.meta.url));
 
-    const s = search.trim().toLowerCase();
-    const sNorm = normalize(s);
+        workerRef.current.onmessage = (event) => {
+            const { type, payload } = event.data;
+            if (type === 'SEARCH_RESULTS') {
+                setFilteredResults(payload);
+            } else if (type === 'FILE_PROCESSED') {
+                // This case might not be strictly necessary here if App.js handles initial data,
+                // but it's good to have for completeness or if data flow changes.
+                // For now, we'll assume App.js passes the initial processed data.
+            }
+        };
 
-    return sourceData.filter(row => {
-        if (row.contract && (row.contract.toLowerCase().includes(s) || normalize(row.contract).includes(sNorm))) return true;
-        if (row.cars && row.cars.some(c => c.toLowerCase().includes(s) || normalize(c).includes(sNorm))) return true;
-        if (row.carsCount && row.carsCount.toString() === s) return true;
-        if (row['Customer Name'] && (row['Customer Name'].toLowerCase().includes(s) || normalize(row['Customer Name']).includes(sNorm))) return true;
-        return false;
-    });
-  }, [search, results, allUniqueContracts]);
+        // Clean up worker on component unmount
+        return () => {
+            workerRef.current.terminate();
+        };
+    }, []);
 
-  const handleReset = () => {
-    setSearch("");
-    resetData();
-  }
+    // Effect to send initial data to worker and handle search term changes
+    useEffect(() => {
+        if (workerRef.current && (results.length > 0 || allUniqueContracts.length > 0)) {
+            workerRef.current.postMessage({
+                type: 'INITIALIZE_DATA',
+                payload: { allUniqueContracts: allUniqueContracts, results: results }
+            });
+
+            // Trigger initial search or display all data
+            workerRef.current.postMessage({
+                type: 'SEARCH_DATA',
+                payload: { searchTerm: search }
+            });
+        }
+    }, [results, allUniqueContracts, search]); // Depend on results, allUniqueContracts, and search
+
+    const handleSearchChange = (e) => {
+        const newSearchTerm = e.target.value;
+        setSearch(newSearchTerm);
+        // Send search term to worker
+        if (workerRef.current) {
+            workerRef.current.postMessage({
+                type: 'SEARCH_DATA',
+                payload: { searchTerm: newSearchTerm }
+            });
+        }
+    };
+
+    const handleReset = () => {
+        setSearch("");
+        resetData();
+        // Also tell the worker to reset its search and send back all data
+        if (workerRef.current) {
+            workerRef.current.postMessage({
+                type: 'SEARCH_DATA',
+                payload: { searchTerm: "" }
+            });
+        }
+    };
 
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
