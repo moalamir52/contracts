@@ -2,6 +2,7 @@
 /* globals XLSX */
 
 importScripts('https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js');
+console.log('Worker: xlsx.full.min.js loaded');
 
 let allContractsData = []; // Store processed data
 let multiCarData = []; // Store processed multi-car data
