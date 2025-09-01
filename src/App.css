@@ -36,3 +36,226 @@
     transform: rotate(360deg);
   }
 }
+
+/* New styles for ContractsTable component */
+.contracts-dashboard {
+  padding: 30px;
+  font-family: "Segoe UI", sans-serif;
+  background: #fff9e5;
+  min-height: 100vh;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+  background-color: #ffd600;
+  color: #6a1b9a;
+  padding: 10px 20px;
+  text-decoration: none;
+  font-weight: bold;
+  border-radius: 8px;
+  border: 2px solid #6a1b9a;
+}
+
+.dashboard-header {
+  background-color: #ffd600;
+  padding: 25px 35px;
+  border-radius: 20px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+  max-width: 720px;
+  margin: 0 auto 30px auto;
+  text-align: center;
+  border: 2px solid #6a1b9a;
+}
+
+.dashboard-header h1 {
+  color: #6a1b9a;
+  font-size: 36px;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.dashboard-header p {
+  color: #6a1b9a;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.controls-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  padding: 10px;
+  min-width: 280px;
+  border-radius: 10px;
+  border: 1px solid #6a1b9a;
+}
+
+.control-button {
+  padding: 10px 16px;
+  background-color: #fff;
+  color: #6a1b9a;
+  border: 2px solid #6a1b9a;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+  transition: 0.3s;
+}
+
+.control-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading-message, .error-message, .no-contracts-message {
+  text-align: center;
+  font-weight: bold;
+  padding: 20px;
+}
+
+.loading-message {
+  color: #6a1b9a;
+  font-size: 1.2em;
+}
+
+.error-message {
+  color: red;
+}
+
+.no-contracts-message {
+  color: #555;
+}
+
+.data-table-container {
+  overflow-x: auto;
+}
+
+.data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.table-header {
+  background-color: #ffd600;
+}
+
+.table-cell {
+  border: 1px solid #ccc;
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+
+.duplicated-row {
+  background-color: #ff0800;
+  color: #fff;
+}
+
+.repaired-row {
+  background-color: #ccffcc;
+}
+
+.mismatch-row {
+  background-color: #ffcccc;
+}
+
+.even-row {
+  background-color: #fffde7;
+}
+
+.odd-row {
+  background-color: #ffffff;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.customer-link {
+  text-decoration: underline;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.duplicated-row .customer-link {
+  color: #fff;
+}
+
+.customer-link {
+  color: #6a1b9a;
+}
+
+.phone-link {
+  text-decoration: underline;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.duplicated-row .phone-link {
+  color: #fff;
+}
+
+.phone-link {
+  color: #25D366;
+}
+
+.contract-link, .booking-link {
+  text-decoration: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.duplicated-row .contract-link, .duplicated-row .booking-link {
+  color: #fff;
+}
+
+.contract-link {
+  color: #1976d2;
+}
+
+.booking-link {
+  color: #0077b5;
+}
+
+.repaired-info {
+  display: block;
+  color: #008000;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.duplicated-info {
+  font-size: 12px;
+  font-weight: bold;
+  margin-top: 2px;
+}
+
+.duplicated-info button {
+  color: #ffd600;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.center-margin {
+  margin: 0 auto;
+}
