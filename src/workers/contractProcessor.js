@@ -41,11 +41,14 @@ onmessage = function(e) {
         const fileData = payload;
         try {
             console.log('Worker: Starting XLSX.read');
+            console.log('Worker: Attempting to create Uint8Array');
             const dataArr = new Uint8Array(fileData);
             const workbook = XLSX.read(dataArr, { type: 'array' });
             console.log('Worker: Finished XLSX.read, starting sheet_to_json');
             const sheetName = workbook.SheetNames[0];
-            const worksheet = XLSX.Sheets[sheetName];
+            console.log('Worker: Sheet Name:', sheetName);
+            const worksheet = workbook.Sheets[sheetName];
+            console.log('Worker: Worksheet is undefined?', worksheet === undefined);
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { cellDates: true });
             console.log('Worker: Finished sheet_to_json, starting jsonData.forEach');
 

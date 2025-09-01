@@ -88,7 +88,7 @@ export default function ContractsTable() {
     const reader = new FileReader();
     reader.onload = (e) => {
         const arrayBuffer = e.target.result;
-        worker.postMessage(arrayBuffer, [arrayBuffer]);
+        worker.postMessage({ type: 'PROCESS_FILE', payload: arrayBuffer }, [arrayBuffer]);
     };
     reader.readAsArrayBuffer(file);
   };
