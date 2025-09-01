@@ -1,0 +1,6 @@
+{
+  "short_name": "Contracts App",
+  "name": "Contracts Dashboard Application",
+  "start_url": ".",
+  "display": "standalone"
+}
