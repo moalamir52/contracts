@@ -519,9 +519,7 @@ We are here to serve you, Thank you.`;
               className="search-input"
             />
             <button className="control-button" onClick={() => setSearchTerm("")}>❌ Reset</button>
-            <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady || exporting}>
-              {exporting ? '⏳ Exporting...' : '📤 Export'}
-            </button>
+            <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
         </div>
 
     {debouncedSearchTerm.trim() === '' && (

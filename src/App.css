@@ -259,3 +259,37 @@
 .center-margin {
   margin: 0 auto;
 }
+
+/* Virtual Scrolling Styles */
+.table-row {
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s;
+}
+
+.table-row:hover {
+  background-color: #f0f0f0 !important;
+}
+
+.data-table-container .table-header {
+  background-color: #ffd600;
+  border-bottom: 2px solid #6a1b9a;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.data-table-container .table-cell {
+  padding: 8px;
+  border-right: 1px solid #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure virtual scrolling container has proper styling */
+.data-table-container > div[style*="position: relative"] {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}

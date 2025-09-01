@@ -10,14 +10,12 @@ export default function MultiContractPage({ onBack }) {
   useEffect(() => {
     const saved = localStorage.getItem('multiCarResults');
     const savedSummary = localStorage.getItem('multiCarSummary');
-    
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setResults(parsed);
       } catch {}
     }
-    
     if (savedSummary) {
       try {
         const parsedSummary = JSON.parse(savedSummary);
@@ -33,15 +31,14 @@ export default function MultiContractPage({ onBack }) {
   // Normalize input and data to remove spaces between letters and numbers
   const normalize = str => (str || '').toString().replace(/\s+/g, '').toLowerCase();
   const filteredResults = useMemo(() => {
+    const allContracts = [...results, ...singleCarContracts];
     if (!search.trim()) {
       return results; // Only show multi-car contracts if search is empty
     }
 
     const s = search.trim().toLowerCase();
     const sNorm = normalize(s);
-    const allContracts = [...results, ...singleCarContracts];
 
-    // Search in all contracts (both multi-car and single-car)
     return allContracts.filter(row => {
       // Search in contract number
       if (row.contract && (row.contract.toLowerCase().includes(s) || normalize(row.contract).includes(sNorm))) return true;
@@ -317,7 +314,6 @@ export default function MultiContractPage({ onBack }) {
         setUploadSummary(summary);
         localStorage.setItem('multiCarResults', JSON.stringify(resultRows));
         localStorage.setItem('multiCarSummary', JSON.stringify(summary));
-        // Note: singleCarContracts not saved to localStorage due to size limits
 
       } catch (error) {
         console.error("File processing error:", error);
@@ -493,7 +489,6 @@ export default function MultiContractPage({ onBack }) {
             setSearch("");
             setCurrentSearchInput(""); // Clear current search input
             setResults([]);
-            setSingleCarContracts([]);
             setUploadSummary(null);
             localStorage.removeItem('multiCarResults');
             localStorage.removeItem('multiCarSummary');
