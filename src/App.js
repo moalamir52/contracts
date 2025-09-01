@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import MultiContractPage from "./components/MultiContractPage";
 import Toast from "./components/Toast";
 import ColumnResizer from "./components/ColumnResizer";
@@ -20,6 +20,14 @@ import {
 } from './config';
 import './App.css';
 
+// Constants
+const FILTER_MODES = {
+  ALL: 'all',
+  MISMATCH: 'mismatch',
+  SWITCHBACK: 'switchback'
+};
+
+const DATE_COLUMNS = ['pickupDate', 'dropoffDate', 'replacementDate', 'revenueDate'];
 
 // Main component for the contracts table
 export default function ContractsTable() {
@@ -27,8 +35,18 @@ export default function ContractsTable() {
   const [allContracts, setAllContracts] = useState([]);
   const [maintenanceData, setMaintenanceData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [filterMode, setFilterMode] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [selectedContract, setSelectedContract] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -212,12 +230,12 @@ export default function ContractsTable() {
     const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row, maintenanceData));
 
     let dataToDisplay;
-    if (searchTerm.trim() === '') {
-        if (filterMode === "mismatch") dataToDisplay = mismatchRows;
-        else if (filterMode === "switchback") dataToDisplay = switchbackRows;
+    if (debouncedSearchTerm.trim() === '') {
+        if (filterMode === FILTER_MODES.MISMATCH) dataToDisplay = mismatchRows;
+        else if (filterMode === FILTER_MODES.SWITCHBACK) dataToDisplay = switchbackRows;
         else dataToDisplay = openContracts;
     } else {
-        const s = searchTerm.trim().toLowerCase();
+        const s = debouncedSearchTerm.trim().toLowerCase();
         dataToDisplay = allContracts.filter(row =>
             Object.values(row).some(
                 val => val && val.toString().toLowerCase().includes(s)
@@ -232,7 +250,7 @@ export default function ContractsTable() {
       invygoCounts,
       openContractsCount: openContracts.length
     };
-  }, [allContracts, maintenanceData, searchTerm, filterMode]);
+  }, [allContracts, maintenanceData, debouncedSearchTerm, filterMode]);
 
   const showToastNotification = (message) => {
     setToastMessage(message);
@@ -259,7 +277,7 @@ export default function ContractsTable() {
     document.body.removeChild(textArea);
   };
 
-    const handlePhoneClick = (e, row) => {
+    const handlePhoneClick = useCallback((e, row) => {
         e.preventDefault();
         const rect = e.currentTarget.getBoundingClientRect();
         setDropdown({
@@ -267,16 +285,16 @@ export default function ContractsTable() {
             row: row,
             position: { top: rect.bottom + 5, left: rect.left }
         });
-    };
+    }, []);
 
-    const closeDropdown = () => {
+    const closeDropdown = useCallback(() => {
         setDropdown({ visible: false, row: null, position: null });
-    };
+    }, []);
 
-    const handleCustomerClick = (contract) => {
+    const handleCustomerClick = useCallback((contract) => {
         setSelectedContract(contract);
         setShowModal(true);
-    };
+    }, []);
 
     const copyAndOpenWhatsApp = (row, messageTemplate, toastMessage) => {
         const normalizedPhone = normalizePhoneNumber(row.phoneNumber);
@@ -309,17 +327,25 @@ We are here to serve you, Thank you.`;
         }}
     ];
 
-  const exportToExcel = () => {
+  const exportToExcel = useCallback(async () => {
     if (!xlsxReady || !window.XLSX) {
-      console.error("XLSX library not loaded yet.");
+      showToastNotification("Excel library not ready yet");
       return;
     }
-    const XLSX = window.XLSX;
-    const ws = XLSX.utils.json_to_sheet(filteredData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contracts");
-    XLSX.writeFile(wb, `Contracts_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
-  };
+    setExporting(true);
+    try {
+      const XLSX = window.XLSX;
+      const ws = XLSX.utils.json_to_sheet(filteredData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Contracts");
+      XLSX.writeFile(wb, `Contracts_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+      showToastNotification("Excel file exported successfully!");
+    } catch (error) {
+      showToastNotification("Export failed!");
+    } finally {
+      setExporting(false);
+    }
+  }, [xlsxReady, filteredData]);
   
   const headersConfig = {
   open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate'],
@@ -337,9 +363,9 @@ We are here to serve you, Thank you.`;
     model1: 'Model (Repeated)', contact: 'Contact', contractType: 'Contract Type',
   };
 
-  const getHeadersForData = (data) => {
-    if (filterMode === "switchback" && searchTerm.trim() === '') return headersConfig.switchback;
-    if (searchTerm.trim() === '' && (filterMode === "all" || filterMode === "mismatch")) return headersConfig.open;
+  const getHeadersForData = useMemo(() => (data) => {
+    if (filterMode === FILTER_MODES.SWITCHBACK && debouncedSearchTerm.trim() === '') return headersConfig.switchback;
+    if (debouncedSearchTerm.trim() === '' && (filterMode === FILTER_MODES.ALL || filterMode === FILTER_MODES.MISMATCH)) return headersConfig.open;
 
     if (data.length === 0) return headersConfig.open;
 
@@ -352,14 +378,14 @@ We are here to serve you, Thank you.`;
         }
     });
 
-    if (searchTerm.trim() !== '') {
+    if (debouncedSearchTerm.trim() !== '') {
         populatedKeys.add('contractType');
     }
 
     return headersConfig.master.filter(key => populatedKeys.has(key));
-  };
+  }, [filterMode, debouncedSearchTerm]);
   
-  const DataTable = ({ data, headers, onPhoneClick, onCustomerClick }) => (
+  const DataTable = memo(({ data, headers, onPhoneClick, onCustomerClick }) => (
     <div className="data-table-container">
       <table className="data-table">
         <thead className="table-header">
@@ -390,7 +416,7 @@ We are here to serve you, Thank you.`;
                 const firstName = (row.customer || "").split(" ")[0];
                 const phone = row.phoneNumber || "";
                 let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
-                if (filterMode === "switchback") {
+                if (filterMode === FILTER_MODES.SWITCHBACK) {
                     text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
                 }
                 copyToClipboard(text, "WhatsApp message copied!");
@@ -404,7 +430,7 @@ We are here to serve you, Thank you.`;
                   </span>
                 </td>
                 {headers.map((headerKey) => {
-                  const isDateColumn = ['pickupDate', 'dropoffDate', 'replacementDate', 'revenueDate'].includes(headerKey);
+                  const isDateColumn = DATE_COLUMNS.includes(headerKey);
                   let value = row[headerKey] || '';
                   if (isDateColumn) {
                       value = formatDateForDisplay(value);
@@ -413,7 +439,7 @@ We are here to serve you, Thank you.`;
                   let content = value;
                   const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
                   
-                  if ((filterMode === 'mismatch' || filterMode === 'switchback') && headerKey === 'invygoModel') {
+                  if ((filterMode === FILTER_MODES.MISMATCH || filterMode === FILTER_MODES.SWITCHBACK) && headerKey === 'invygoModel') {
                       const days = getDaysSinceLatestIn(row, maintenanceData);
                       if (days !== '') {
                           content = (<span>{value}<span className="repaired-info">(Repaired: {days} days ago)</span></span>);
@@ -461,7 +487,7 @@ We are here to serve you, Thank you.`;
         </tbody>
       </table>
     </div>
-  );
+  ));
   
   // ...existing code...
   if (showMultiContract) {
@@ -493,14 +519,16 @@ We are here to serve you, Thank you.`;
               className="search-input"
             />
             <button className="control-button" onClick={() => setSearchTerm("")}>❌ Reset</button>
-            <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
+            <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady || exporting}>
+              {exporting ? '⏳ Exporting...' : '📤 Export'}
+            </button>
         </div>
 
-    {searchTerm.trim() === '' && (
+    {debouncedSearchTerm.trim() === '' && (
       <div className="controls-container">
-        <button className="control-button" onClick={() => setFilterMode("all")}>📋 All ({openContractsCount})</button>
-        <button className="control-button" onClick={() => setFilterMode("mismatch")}>♻️ Replacements ({mismatchCount})</button>
-        <button className="control-button" onClick={() => setFilterMode("switchback")}>🔁 Switch Back ({switchbackCount})</button>
+        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.ALL)}>📋 All ({openContractsCount})</button>
+        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.MISMATCH)}>♻️ Replacements ({mismatchCount})</button>
+        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.SWITCHBACK)}>🔁 Switch Back ({switchbackCount})</button>
         <button className="control-button" onClick={() => setShowMultiContract(true)}>🚗 Multi-Car Contracts</button>
       </div>
     )}
