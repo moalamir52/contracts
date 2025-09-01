@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // New MultiContract Page
 export default function MultiContractPage({ onBack }) {
   const [results, setResults] = useState([]);
+  const [singleCarContracts, setSingleCarContracts] = useState([]);
   const [uploadSummary, setUploadSummary] = useState(null); // State for upload summary
 
   // Retrieve results from localStorage when the page opens
@@ -24,24 +25,32 @@ export default function MultiContractPage({ onBack }) {
   }, []);
 
   const [search, setSearch] = useState("");
+  const [currentSearchInput, setCurrentSearchInput] = useState("");
   const [selectedContract, setSelectedContract] = useState(null);
   // Filter results by smart search
   // Normalize input and data to remove spaces between letters and numbers
   const normalize = str => (str || '').toString().replace(/\s+/g, '').toLowerCase();
-  const filteredResults = results.filter(row => {
-    if (!search.trim()) return true;
+  const filteredResults = useMemo(() => {
+    const allContracts = [...results, ...singleCarContracts];
+    if (!search.trim()) {
+      return results; // Only show multi-car contracts if search is empty
+    }
+
     const s = search.trim().toLowerCase();
     const sNorm = normalize(s);
-    // Search in contract number
-    if (row.contract && (row.contract.toLowerCase().includes(s) || normalize(row.contract).includes(sNorm))) return true;
-    // Search in cars and periods
-    if (row.cars && row.cars.some(c => c.toLowerCase().includes(s) || normalize(c).includes(sNorm))) return true;
-    // Search in number of cars
-    if (row.carsCount && row.carsCount.toString() === s) return true;
-    // Search in customer name
-    if (row['Customer Name'] && (row['Customer Name'].toLowerCase().includes(s) || normalize(row['Customer Name']).includes(sNorm))) return true;
-    return false;
-  });
+
+    return allContracts.filter(row => {
+      // Search in contract number
+      if (row.contract && (row.contract.toLowerCase().includes(s) || normalize(row.contract).includes(sNorm))) return true;
+      // Search in cars and periods
+      if (row.cars && row.cars.some(c => c.toLowerCase().includes(s) || normalize(c).includes(sNorm))) return true;
+      // Search in number of cars
+      if (row.carsCount && row.carsCount.toString() === s) return true;
+      // Search in customer name
+      if (row['Customer Name'] && (row['Customer Name'].toLowerCase().includes(s) || normalize(row['Customer Name']).includes(sNorm))) return true;
+      return false;
+    });
+  }, [search, results, singleCarContracts]);
 
   // Loading state when uploading file
   const [uploading, setUploading] = useState(false);
@@ -128,13 +137,90 @@ export default function MultiContractPage({ onBack }) {
         });
 
         const resultRows = [];
+        const tempSingleCarContracts = [];
         let singleCarContractsCount = 0;
 
         Object.entries(contractGroups).forEach(([contractNo, carsObj]) => {
           const uniquePlatesInContract = Object.keys(carsObj);
           if (uniquePlatesInContract.length <= 1) {
             singleCarContractsCount++;
-            return;
+            // Process single-car contracts to store them
+            let allDates = [];
+            const excelDateToJS = (serial) => {
+              const utc_days = Math.floor(serial - 25569);
+              const utc_value = utc_days * 86400;
+              const date_info = new Date(utc_value * 1000);
+              const ms = Math.round((serial - Math.floor(serial)) * 86400 * 1000);
+              date_info.setTime(date_info.getTime() + ms);
+              return date_info;
+            };
+            const formatDate = d => {
+              if (d instanceof Date && !isNaN(d)) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return `${day}/${month}/${year}`;
+              }
+              if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+                const [y, m, rest] = d.split('-');
+                const [dd] = rest.split('T')[0].split(' ');
+                return `${dd}/${m}/${y}`;
+              }
+              return d;
+            };
+
+            Object.entries(carsObj).forEach(([plate, arr]) => {
+              arr.forEach(d => {
+                let dateObj = d;
+                if (typeof d === 'number') dateObj = excelDateToJS(d);
+                else if (typeof d === 'string') {
+                  const parsed = new Date(d);
+                  if (!isNaN(parsed)) dateObj = parsed;
+                }
+                allDates.push({ plate, date: dateObj });
+              });
+            });
+            
+            allDates.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            let periods = [];
+            let prevPlate = null, periodStart = null, periodEnd = null, periodStartRevenueDate = null;
+            allDates.forEach((entry, idx) => {
+              const { plate, date } = entry;
+              if (plate !== prevPlate) {
+                if (prevPlate !== null) {
+                  periods.push({ plate: prevPlate, from: formatDate(periodStart), to: formatDate(periodEnd), revenueDate: periodStartRevenueDate });
+                }
+                periodStart = date;
+                periodStartRevenueDate = entry.date instanceof Date ? entry.date.toISOString() : entry.date;
+              }
+              periodEnd = date;
+              prevPlate = plate;
+              if (idx === allDates.length - 1) {
+                periods.push({ plate, from: formatDate(periodStart), to: formatDate(periodEnd), revenueDate: periodStartRevenueDate });
+              }
+            });
+
+            const carsArr = periods.map(p => {
+              let details = (periodDetailsMap[p.plate] && periodDetailsMap[p.plate][p.from]) || {};
+              if (!details.pickupOdometer) {
+                const allDetails = periodDetailsMap[p.plate];
+                if (allDetails) {
+                  const firstKey = Object.keys(allDetails)[0];
+                  details = allDetails[firstKey];
+                }
+              }
+              return `${p.plate} | ${details.model || '-'} | ${details.category || '-'} | ${details.year || '-'} | Pickup Odometer: ${details.pickupOdometer || '-'} (${p.from} - ${p.to})`;
+            });
+            
+            const uniquePlates = Array.from(new Set(periods.map(p => p.plate)));
+            tempSingleCarContracts.push({
+              contract: contractNo,
+              cars: carsArr,
+              carsCount: uniquePlates.length,
+              ...contractInfo[contractNo]
+            });
+            return; // Skip adding to resultRows for multi-car contracts
           }
 
           let allDates = [];
@@ -224,6 +310,7 @@ export default function MultiContractPage({ onBack }) {
         };
 
         setResults(resultRows);
+        setSingleCarContracts(tempSingleCarContracts); // Set the single car contracts
         setUploadSummary(summary);
         localStorage.setItem('multiCarResults', JSON.stringify(resultRows));
         localStorage.setItem('multiCarSummary', JSON.stringify(summary));
@@ -346,8 +433,8 @@ export default function MultiContractPage({ onBack }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 10px 0', justifyContent: 'center' }}>
         <input
           type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+          value={currentSearchInput}
+          onChange={e => setCurrentSearchInput(e.target.value)}
           placeholder="Search contract, plate, or date..."
           style={{
             padding: '10px 16px',
@@ -359,9 +446,47 @@ export default function MultiContractPage({ onBack }) {
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
           }}
         />
+        {currentSearchInput && ( // Conditionally render the clear button
+          <button
+            onClick={() => {
+              setSearch("");
+              setCurrentSearchInput("");
+            }}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#ff4d4d', // Red color for clear
+              color: '#fff',
+              fontWeight: 'bold',
+              fontSize: 16,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
+            }}
+          >
+            ×
+          </button>
+        )}
+        <button
+          onClick={() => setSearch(currentSearchInput)}
+          style={{
+            padding: '10px 18px',
+            borderRadius: 8,
+            border: 'none',
+            background: '#6a1b9a',
+            color: '#fff',
+            fontWeight: 'bold',
+            fontSize: 16,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
+          }}
+        >
+          Search
+        </button>
         <button
           onClick={() => {
             setSearch("");
+            setCurrentSearchInput(""); // Clear current search input
             setResults([]);
             setUploadSummary(null);
             localStorage.removeItem('multiCarResults');

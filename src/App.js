@@ -43,10 +43,10 @@ export default function ContractsTable() {
   const [multiCarResults, setMultiCarResults] = useState([]);
   
   const [columnWidths, setColumnWidths] = useState({
-      customer: 200, contractNo: 140, invygoPlate: 120, 
-      ejarPlate: 120, phoneNumber: 120, invygoModel: 180, 
-      ejarModel: 180, bookingNumber: 130, contractType: 120, 
-      pickupBranch: 140, contact: 130, model1: 160, dropoffDate: 130,
+      customer: 220, contractNo: 160, invygoPlate: 150, 
+      ejarPlate: 150, phoneNumber: 150, invygoModel: 200, 
+      ejarModel: 200, bookingNumber: 150, contractType: 140, 
+      pickupBranch: 160, contact: 150, model1: 180, dropoffDate: 150,
   });
 
   const handleColumnResize = (headerKey, newWidth) => {
@@ -425,7 +425,7 @@ We are here to serve you, Thank you.`;
                           </span>
                       );
                   } else if (headerKey === 'contractType') {
-                    content = <span className="font-bold">{contractTypeDisplay[row.type]}</span>
+                    content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
                   } else if (row.type === 'open' && headerKey === 'phoneNumber') {
                       content = (
                           <span onClick={(e) => onPhoneClick(e, row)} className="phone-link">
@@ -477,7 +477,7 @@ We are here to serve you, Thank you.`;
         ← Back to YELO
       </a>
 
-      <div className="center-margin">
+      <div style={{ margin: '0 auto' }}>
         <header className="dashboard-header">
           <h1>Contracts Dashboard</h1>
           <p>Search open and closed contracts in one place</p>
