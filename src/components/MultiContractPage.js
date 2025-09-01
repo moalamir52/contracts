@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { List } from 'react-window';
 
 function MultiContractPage({ 
     onBack, 
@@ -14,6 +15,7 @@ function MultiContractPage({
 
   const [filteredResults, setFilteredResults] = useState([]); // New state for filtered results
     const workerRef = useRef(null); // Ref to store the worker instance
+    const tableContainerRef = useRef(null); // Ref for the table container to get its height
 
     // Initialize worker and handle messages
     useEffect(() => {
@@ -74,6 +76,70 @@ function MultiContractPage({
                 payload: { searchTerm: "" }
             });
         }
+    };
+
+    // Row component for react-window
+    const Row = ({ index, style }) => {
+        const row = filteredResults[index];
+        if (!row) return null; // Should not happen with correct itemCount
+
+        return (
+            <tr key={index} style={{ ...style, background: index % 2 === 0 ? '#fffde7' : '#fff', transition: 'background 0.2s' }}>
+                <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', textAlign: 'center', fontSize: 15 }}>
+                  <button
+                    style={{ background: 'none', border: 'none', color: '#6a1b9a', fontWeight: 'bold', fontSize: 15, cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => setSelectedContract(row)}
+                    title="Show contract details"
+                  >
+                    {row.contract}
+                  </button>
+                </td>
+                <td style={{ minWidth: 140, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row['Customer Name']}</td>
+                <td style={{ minWidth: 120, padding: 0, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, background: '#fff' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', background: 'none', borderRadius: 10, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,150,136,0.10)' }}>
+                    <colgroup>
+                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '30%' }} />
+                      <col style={{ width: '30%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ background: 'linear-gradient(90deg,#e0f7fa 60%,#b2ebf2 100%)' }}>
+                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Model</th>
+                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Year</th>
+                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Plate</th>
+                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Period</th>
+                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Pickup Odometer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {row.cars.map((c, i) => {
+                        const match = c.match(/^(.*?) \| (.*?) \| (.*?) \| (.*?) \| Pickup Odometer: (.*?) \((.*)\)$/);
+                        let plate = '', model = '', category = '', year = '', pickupOdometer = '', period = '';
+                        if (match) {
+                          plate = match[1].trim();
+                          model = match[2].trim();
+                          category = match[3].trim();
+                          year = match[4].trim();
+                          pickupOdometer = match[5].trim();
+                          period = match[6].trim();
+                        }
+                        return (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#ffffff' : '#b2ebf2' }}>
+                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{model}</td>
+                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{year}</td>
+                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 700, fontSize: 15 }}>{plate.replace(/([A-Z])([0-9])/g, '$1 $2').replace(/([0-9])([A-Z])/g, '$1 $2')}</td>
+                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{period}</td>
+                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{pickupOdometer}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </td>
+                <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', color: '#6a1b9a', textAlign: 'center', fontSize: 15 }}>{row.carsCount} Cars</td>
+            </tr>
+        );
     };
 
   return (
@@ -188,7 +254,7 @@ function MultiContractPage({
         <input
           type="text"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={handleSearchChange}
           placeholder="Search all unique contracts..."
           style={{
             padding: '10px 16px',
@@ -217,7 +283,7 @@ function MultiContractPage({
           Reset
         </button>
       </div>
-      <div style={{ overflowX: 'auto', marginTop: 10 }}>
+      <div style={{ overflowX: 'auto', marginTop: 10 }} ref={tableContainerRef}>
   <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', margin: '0 auto', background: '#fff', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', tableLayout: 'auto' }}>
           <thead>
             <tr style={{ background: 'linear-gradient(90deg,#ffd600 60%,#fffde7 100%)', color: '#6a1b9a', fontSize: 18 }}>
@@ -230,63 +296,16 @@ function MultiContractPage({
           <tbody>
             {filteredResults.length === 0 ? (
               <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#888', fontSize: 18 }}>No data</td></tr>
-            ) : filteredResults.map((row, idx) => (
-              <tr key={idx} style={{ background: idx % 2 === 0 ? '#fffde7' : '#fff', transition: 'background 0.2s' }}>
-                <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', textAlign: 'center', fontSize: 15 }}>
-                  <button
-                    style={{ background: 'none', border: 'none', color: '#6a1b9a', fontWeight: 'bold', fontSize: 15, cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => setSelectedContract(row)}
-                    title="Show contract details"
-                  >
-                    {row.contract}
-                  </button>
-                </td>
-                <td style={{ minWidth: 140, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row['Customer Name']}</td>
-                <td style={{ minWidth: 120, padding: 0, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, background: '#fff' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', background: 'none', borderRadius: 10, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,150,136,0.10)' }}>
-                    <colgroup>
-                      <col style={{ width: '25%' }} />
-                      <col style={{ width: '15%' }} />
-                      <col style={{ width: '30%' }} />
-                      <col style={{ width: '30%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr style={{ background: 'linear-gradient(90deg,#e0f7fa 60%,#b2ebf2 100%)' }}>
-                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Model</th>
-                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Year</th>
-                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Plate</th>
-                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Period</th>
-                        <th style={{ border: '1px solid #26c6da', padding: '10px 8px', fontSize: 15, color: '#006064', background: '#e0f7fa', fontWeight: 700 }}>Pickup Odometer</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {row.cars.map((c, i) => {
-                        const match = c.match(/^(.*?) \| (.*?) \| (.*?) \| (.*?) \| Pickup Odometer: (.*?) \((.*)\)$/);
-                        let plate = '', model = '', category = '', year = '', pickupOdometer = '', period = '';
-                        if (match) {
-                          plate = match[1].trim();
-                          model = match[2].trim();
-                          category = match[3].trim();
-                          year = match[4].trim();
-                          pickupOdometer = match[5].trim();
-                          period = match[6].trim();
-                        }
-                        return (
-                          <tr key={i} style={{ background: i % 2 === 0 ? '#ffffff' : '#b2ebf2' }}>
-                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{model}</td>
-                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{year}</td>
-                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 700, fontSize: 15 }}>{plate.replace(/([A-Z])([0-9])/g, '$1 $2').replace(/([0-9])([A-Z])/g, '$1 $2')}</td>
-                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{period}</td>
-                            <td style={{ border: '1px solid #26c6da', padding: '10px 8px', color: '#00838f', fontWeight: 600, fontSize: 15 }}>{pickupOdometer}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </td>
-                <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', color: '#6a1b9a', textAlign: 'center', fontSize: 15 }}>{row.carsCount} Cars</td>
-              </tr>
-            ))}
+            ) : (
+                <List
+                    height={400} // Fixed height for the scrollable area
+                    itemCount={filteredResults.length}
+                    itemSize={150} // Estimated average row height (adjust as needed)
+                    width="100%"
+                >
+                    {Row}
+                </List>
+            )}
           </tbody>
         </table>
       </div>

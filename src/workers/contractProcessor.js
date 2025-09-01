@@ -6,6 +6,30 @@ importScripts('https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js
 let allContractsData = []; // Store processed data
 let multiCarData = []; // Store processed multi-car data
 
+const excelDateToJS = (serial) => {
+  const utc_days = Math.floor(serial - 25569);
+  const utc_value = utc_days * 86400;
+  const date_info = new Date(utc_value * 1000);
+  const ms = Math.round((serial - Math.floor(serial)) * 86400 * 1000);
+  date_info.setTime(date_info.getTime() + ms);
+  return date_info;
+};
+
+const formatDate = d => {
+  if (d instanceof Date && !isNaN(d)) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+    const [y, m, rest] = d.split('-');
+    const [dd] = rest.split('T')[0].split(' ');
+    return `${dd}/${m}/${y}`;
+  }
+  return d;
+};
+
 const normalize = str => (str || '').toString().replace(/\s+/g, '').toLowerCase();
 
 onmessage = function(e) {
@@ -15,11 +39,14 @@ onmessage = function(e) {
     if (type === 'PROCESS_FILE') {
         const fileData = payload;
         try {
+            console.log('Worker: Starting XLSX.read');
             const dataArr = new Uint8Array(fileData);
             const workbook = XLSX.read(dataArr, { type: 'array' });
+            console.log('Worker: Finished XLSX.read, starting sheet_to_json');
             const sheetName = workbook.SheetNames[0];
             const worksheet = XLSX.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { cellDates: true });
+            console.log('Worker: Finished sheet_to_json, starting jsonData.forEach');
 
             const totalRows = jsonData.length;
             const contractNumbers = new Set(jsonData.map(row => row['Contract No.']).filter(Boolean));
@@ -53,33 +80,31 @@ onmessage = function(e) {
                 };
               }
               const getDateStr = (d) => {
-                if (d instanceof Date && !isNaN(d)) {
-                  const day = String(d.getDate()).padStart(2, '0');
-                  const month = String(d.getMonth() + 1).padStart(2, '0');
-                  const year = d.getFullYear();
-                  return `${day}/${month}/${year}`;
-                }
+                let dateObj = d;
                 if (typeof d === 'number') {
+                  // Assuming Excel serial date
                   const utc_days = Math.floor(d - 25569);
                   const utc_value = utc_days * 86400;
-                  const date_info = new Date(utc_value * 1000);
+                  dateObj = new Date(utc_value * 1000);
                   const ms = Math.round((d - Math.floor(d)) * 86400 * 1000);
-                  date_info.setTime(date_info.getTime() + ms);
-                  const day = String(date_info.getDate()).padStart(2, '0');
-                  const month = String(date_info.getMonth() + 1).padStart(2, '0');
-                  const year = date_info.getFullYear();
-                  return `${day}/${month}/${year}`;
-                }
-                if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+                  dateObj.setTime(dateObj.getTime() + ms);
+                } else if (typeof d === 'string') {
+                  // Try to parse string dates
                   const parsed = new Date(d);
                   if (!isNaN(parsed)) {
-                    const day = String(parsed.getDate()).padStart(2, '0');
-                    const month = String(parsed.getMonth() + 1).padStart(2, '0');
-                    const year = parsed.getFullYear();
-                    return `${day}/${month}/${year}`;
+                    dateObj = parsed;
+                  } else {
+                    return d; // Return original string if not a valid date string
                   }
                 }
-                return d;
+
+                if (dateObj instanceof Date && !isNaN(dateObj)) {
+                  const day = String(dateObj.getDate()).padStart(2, '0');
+                  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                  const year = String(dateObj.getFullYear());
+                  return `${day}/${month}/${year}`;
+                }
+                return d; // Fallback if not a recognized date type
               };
               const dateKey = getDateStr(revenueDate);
               if (!periodDetailsMap[plateNumber]) periodDetailsMap[plateNumber] = {};
@@ -90,34 +115,15 @@ onmessage = function(e) {
                 pickupOdometer
               };
             });
+            console.log('Worker: Finished jsonData.forEach, starting contractGroups processing');
 
             const allContractsResultRows = [];
             const multiCarResultRows = [];
 
+            
+
             Object.entries(contractGroups).forEach(([contractNo, carsObj]) => {
               let allDates = [];
-              const excelDateToJS = (serial) => {
-                const utc_days = Math.floor(serial - 25569);
-                const utc_value = utc_days * 86400;
-                const date_info = new Date(utc_value * 1000);
-                const ms = Math.round((serial - Math.floor(serial)) * 86400 * 1000);
-                date_info.setTime(date_info.getTime() + ms);
-                return date_info;
-              };
-              const formatDate = d => {
-                if (d instanceof Date && !isNaN(d)) {
-                  const day = String(d.getDate()).padStart(2, '0');
-                  const month = String(d.getMonth() + 1).padStart(2, '0');
-                  const year = d.getFullYear();
-                  return `${day}/${month}/${year}`;
-                }
-                if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) {
-                  const [y, m, rest] = d.split('-');
-                  const [dd] = rest.split('T')[0].split(' ');
-                  return `${dd}/${m}/${y}`;
-                }
-                return d;
-              };
               Object.entries(carsObj).forEach(([plate, arr]) => {
                 arr.forEach(d => {
                   let dateObj = d;
@@ -129,7 +135,7 @@ onmessage = function(e) {
                   allDates.push({ plate, date: dateObj });
                 });
               });
-              allDates.sort((a, b) => new Date(a.date) - new Date(b.date));
+              allDates.sort((a, b) => a.date - b.date);
               let periods = [];
               let prevPlate = null, periodStart = null, periodEnd = null, periodStartRevenueDate = null;
               allDates.forEach((entry, idx) => {
@@ -173,6 +179,7 @@ onmessage = function(e) {
                 multiCarResultRows.push(contractData);
               }
             });
+            console.log('Worker: Finished contractGroups processing, sending results');
 
             const stats = {
                 totalRows,
@@ -183,6 +190,7 @@ onmessage = function(e) {
             allContractsData = allContractsResultRows; // Store for future searches
             multiCarData = multiCarResultRows; // Store for future searches
 
+            console.log('Worker: Sending FILE_PROCESSED message');
             postMessage({ type: 'FILE_PROCESSED', payload: { allContractsResultRows, multiCarResultRows, stats } });
 
         } catch (error) {
