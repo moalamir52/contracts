@@ -1,44 +1,56 @@
 import { useState, useEffect, useMemo } from "react";
-// صفحة MultiContract الجديدة
+// New MultiContract Page
 function MultiContractPage({ onBack }) {
   const [results, setResults] = useState([]);
-  // استرجاع النتائج من localStorage عند فتح الصفحة
+  const [uploadSummary, setUploadSummary] = useState(null); // State for upload summary
+
+  // Retrieve results from localStorage when the page opens
   useEffect(() => {
     const saved = localStorage.getItem('multiCarResults');
+    const savedSummary = localStorage.getItem('multiCarSummary');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setResults(parsed);
       } catch {}
     }
+    if (savedSummary) {
+      try {
+        const parsedSummary = JSON.parse(savedSummary);
+        if (parsedSummary) setUploadSummary(parsedSummary);
+      } catch {}
+    }
   }, []);
+
   const [search, setSearch] = useState("");
   const [selectedContract, setSelectedContract] = useState(null);
-  // فلترة النتائج حسب البحث الذكي
-  // تطبيع الإدخال والبيانات لإزالة المسافات بين الحروف والأرقام
+  // Filter results by smart search
+  // Normalize input and data to remove spaces between letters and numbers
   const normalize = str => (str || '').toString().replace(/\s+/g, '').toLowerCase();
   const filteredResults = results.filter(row => {
     if (!search.trim()) return true;
     const s = search.trim().toLowerCase();
     const sNorm = normalize(s);
-    // ابحث في رقم العقد
+    // Search in contract number
     if (row.contract && (row.contract.toLowerCase().includes(s) || normalize(row.contract).includes(sNorm))) return true;
-    // ابحث في السيارات والفترات
+    // Search in cars and periods
     if (row.cars && row.cars.some(c => c.toLowerCase().includes(s) || normalize(c).includes(sNorm))) return true;
-    // ابحث في عدد السيارات
+    // Search in number of cars
     if (row.carsCount && row.carsCount.toString() === s) return true;
-    // ابحث في اسم العميل
+    // Search in customer name
     if (row['Customer Name'] && (row['Customer Name'].toLowerCase().includes(s) || normalize(row['Customer Name']).includes(sNorm))) return true;
     return false;
   });
 
-  // حالة التحميل عند رفع الملف
+  // Loading state when uploading file
   const [uploading, setUploading] = useState(false);
-  // رفع الملف وتحليل العقود متعددة السيارات
+  // Upload file and analyze multi-car contracts
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
     setUploading(true);
+    setResults([]); // Clear previous results
+    setUploadSummary(null); // Clear previous summary
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -47,12 +59,12 @@ function MultiContractPage({ onBack }) {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = window.XLSX.utils.sheet_to_json(worksheet, { cellDates: true });
-        // Group contracts by contract number and plate, and keep extra info for each contract
+        
         const contractGroups = {};
         const contractInfo = {};
-        // حفظ كل صف حسب plate + revenueDate (بتنسيق موحد)
         const periodDetailsMap = {};
         const normalizePlate = (str) => (str || '').toString().replace(/\s+/g, '').toUpperCase();
+
         jsonData.forEach(row => {
           const contractNo = row['Contract No.'];
           const plateNumberRaw = row['Plate Number'];
@@ -63,7 +75,6 @@ function MultiContractPage({ onBack }) {
           if (!contractGroups[contractNo]) contractGroups[contractNo] = {};
           if (!contractGroups[contractNo][plateNumber]) contractGroups[contractNo][plateNumber] = [];
           contractGroups[contractNo][plateNumber].push(revenueDate);
-          // Save extra info for the contract (first row only)
           if (!contractInfo[contractNo]) {
             contractInfo[contractNo] = {
               'Pick-up Date': row['Pick-up Date'] || '',
@@ -76,7 +87,6 @@ function MultiContractPage({ onBack }) {
               'Customer Phone': row['Customer Phone'] || ''
             };
           }
-          // حفظ كل صف حسب plate + revenueDate (بتنسيق يوم/شهر/سنة)
           const getDateStr = (d) => {
             if (d instanceof Date && !isNaN(d)) {
               const day = String(d.getDate()).padStart(2, '0');
@@ -85,7 +95,6 @@ function MultiContractPage({ onBack }) {
               return `${day}/${month}/${year}`;
             }
             if (typeof d === 'number') {
-              // Excel date
               const utc_days = Math.floor(d - 25569);
               const utc_value = utc_days * 86400;
               const date_info = new Date(utc_value * 1000);
@@ -116,10 +125,17 @@ function MultiContractPage({ onBack }) {
             pickupOdometer
           };
         });
-        // Prepare results: only contracts with more than one car
+
         const resultRows = [];
+        let singleCarContractsCount = 0;
+
         Object.entries(contractGroups).forEach(([contractNo, carsObj]) => {
-          // Build a flat array of {plate, date} sorted by date
+          const uniquePlatesInContract = Object.keys(carsObj);
+          if (uniquePlatesInContract.length <= 1) {
+            singleCarContractsCount++;
+            return;
+          }
+
           let allDates = [];
           const excelDateToJS = (serial) => {
             const utc_days = Math.floor(serial - 25569);
@@ -130,7 +146,6 @@ function MultiContractPage({ onBack }) {
             return date_info;
           };
           const formatDate = d => {
-            // DD/MM/YYYY
             if (d instanceof Date && !isNaN(d)) {
               const day = String(d.getDate()).padStart(2, '0');
               const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -144,6 +159,7 @@ function MultiContractPage({ onBack }) {
             }
             return d;
           };
+
           Object.entries(carsObj).forEach(([plate, arr]) => {
             arr.forEach(d => {
               let dateObj = d;
@@ -155,9 +171,9 @@ function MultiContractPage({ onBack }) {
               allDates.push({ plate, date: dateObj });
             });
           });
-          // Sort by date
+          
           allDates.sort((a, b) => new Date(a.date) - new Date(b.date));
-          // Detect periods for each plate
+          
           let periods = [];
           let prevPlate = null, periodStart = null, periodEnd = null, periodStartRevenueDate = null;
           allDates.forEach((entry, idx) => {
@@ -171,17 +187,16 @@ function MultiContractPage({ onBack }) {
             }
             periodEnd = date;
             prevPlate = plate;
-            // If last entry, close period
             if (idx === allDates.length - 1) {
               periods.push({ plate, from: formatDate(periodStart), to: formatDate(periodEnd), revenueDate: periodStartRevenueDate });
             }
           });
+
           if (periods.length <= 1) return;
+
           const carsArr = periods.map(p => {
-            // جلب Pickup Odometer بناءً على plate وfrom date
             let details = (periodDetailsMap[p.plate] && periodDetailsMap[p.plate][p.from]) || {};
             if (!details.pickupOdometer) {
-              // fallback: أول قيمة متاحة
               const allDetails = periodDetailsMap[p.plate];
               if (allDetails) {
                 const firstKey = Object.keys(allDetails)[0];
@@ -190,7 +205,7 @@ function MultiContractPage({ onBack }) {
             }
             return `${p.plate} | ${details.model || '-'} | ${details.category || '-'} | ${details.year || '-'} | Pickup Odometer: ${details.pickupOdometer || '-'} (${p.from} - ${p.to})`;
           });
-          // Unique plates count
+          
           const uniquePlates = Array.from(new Set(periods.map(p => p.plate)));
           resultRows.push({
             contract: contractNo,
@@ -199,9 +214,21 @@ function MultiContractPage({ onBack }) {
             ...contractInfo[contractNo]
           });
         });
+
+        const summary = {
+          totalRows: jsonData.length,
+          totalContracts: Object.keys(contractGroups).length,
+          singleCarContracts: singleCarContractsCount,
+          multiCarContracts: resultRows.length,
+        };
+
         setResults(resultRows);
-  localStorage.setItem('multiCarResults', JSON.stringify(resultRows));
+        setUploadSummary(summary);
+        localStorage.setItem('multiCarResults', JSON.stringify(resultRows));
+        localStorage.setItem('multiCarSummary', JSON.stringify(summary));
+
       } catch (error) {
+        console.error("File processing error:", error);
         alert('Error processing file');
       } finally {
         setUploading(false);
@@ -212,7 +239,6 @@ function MultiContractPage({ onBack }) {
 
   return (
     <div style={{ padding: 30, fontFamily: "Segoe UI", background: "#fff9e5", minHeight: "100vh" }}>
-      {/* مؤشر التحميل عند رفع الملف */}
       {uploading && (
         <div style={{
           position: 'fixed',
@@ -289,6 +315,33 @@ function MultiContractPage({ onBack }) {
           <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: 'none' }} />
         </label>
       </div>
+
+      {uploadSummary && (
+        <div style={{ maxWidth: '800px', margin: '25px auto', padding: '20px', background: '#fff', borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '2px solid #6a1b9a' }}>
+          <h3 style={{ color: '#6a1b9a', marginTop: 0, marginBottom: '15px', textAlign: 'center', fontSize: '22px', fontWeight: 'bold' }}>File Upload Summary</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr style={{ background: '#fffde7' }}>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Total Rows in File</td>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', textAlign: 'center', fontWeight: 'bold' }}>{uploadSummary.totalRows}</td>
+              </tr>
+              <tr style={{ background: '#fff' }}>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Total Contracts</td>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', textAlign: 'center', fontWeight: 'bold' }}>{uploadSummary.totalContracts}</td>
+              </tr>
+              <tr style={{ background: '#fffde7' }}>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Single Car Contracts</td>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', textAlign: 'center', fontWeight: 'bold' }}>{uploadSummary.singleCarContracts}</td>
+              </tr>
+              <tr style={{ background: '#fff' }}>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Multi-Car Contracts</td>
+                <td style={{ padding: '12px', border: '1px solid #ffd600', textAlign: 'center', fontWeight: 'bold' }}>{uploadSummary.multiCarContracts}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 10px 0', justifyContent: 'center' }}>
         <input
           type="text"
@@ -309,7 +362,9 @@ function MultiContractPage({ onBack }) {
           onClick={() => {
             setSearch("");
             setResults([]);
+            setUploadSummary(null);
             localStorage.removeItem('multiCarResults');
+            localStorage.removeItem('multiCarSummary');
             if (typeof onBack === 'function') onBack();
             setTimeout(() => window.location.reload(), 100);
           }}
@@ -332,10 +387,10 @@ function MultiContractPage({ onBack }) {
   <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', margin: '0 auto', background: '#fff', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', tableLayout: 'auto' }}>
           <thead>
             <tr style={{ background: 'linear-gradient(90deg,#ffd600 60%,#fffde7 100%)', color: '#6a1b9a', fontSize: 18 }}>
-              <th style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Contract No.</th>
-              <th style={{ minWidth: 140, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Customer</th>
+              <th style={{ minWidth: 20, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>#</th>
+              <th style={{ minWidth: 50, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Contract No.</th>
+              <th style={{ minWidth: 250, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Customer</th>
               <th style={{ minWidth: 120, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Cars (Plate & Dates)</th>
-              {/* تم حذف عمود Plate No. */}
               <th style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Cars Count</th>
             </tr>
           </thead>
@@ -344,6 +399,7 @@ function MultiContractPage({ onBack }) {
               <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#888', fontSize: 18 }}>No data</td></tr>
             ) : filteredResults.map((row, idx) => (
               <tr key={idx} style={{ background: idx % 2 === 0 ? '#fffde7' : '#fff', transition: 'background 0.2s' }}>
+                <td style={{ padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15 }}>{idx + 1}</td>
                 <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', textAlign: 'center', fontSize: 15 }}>
                   <button
                     style={{ background: 'none', border: 'none', color: '#6a1b9a', fontWeight: 'bold', fontSize: 15, cursor: 'pointer', textDecoration: 'underline' }}
@@ -398,7 +454,6 @@ function MultiContractPage({ onBack }) {
                     </tbody>
                   </table>
                 </td>
-                {/* تم حذف عمود Plate No. */}
                 <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', color: '#6a1b9a', textAlign: 'center', fontSize: 15 }}>{row.carsCount} Cars</td>
               </tr>
             ))}
@@ -462,7 +517,7 @@ function MultiContractPage({ onBack }) {
                 </tr>
               </tbody>
             </table>
-            {/* جدول السيارات والفترات */}
+            {/* Cars and Periods Table */}
             <div style={{ marginTop: 24, background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(106,27,154,0.07)', padding: 12, border: '1.5px solid #ffd600', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                 <thead>
