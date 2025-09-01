@@ -300,7 +300,7 @@ function MultiContractPage({ onBack }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0', gap: 16, flexWrap: 'wrap' }}>
         <a
-          href="/multi_car_template.csv"
+          href={process.env.PUBLIC_URL + "/multi_car_template.csv"}
           download
           style={{
             background: '#6a1b9a', color: '#ffd600', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'none', fontSize: 16, display: 'inline-block', minWidth: 180, textAlign: 'center'
