@@ -218,7 +218,7 @@ export default function ContractsTable() {
   }, []);
   
 
-  const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount } = useMemo(() => {
+  const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
     const openContracts = allContracts.filter(c => c.type === 'open');
     const invygoCounts = openContracts.reduce((acc, row) => {
       const plate = normalize(row.invygoPlate);
@@ -230,6 +230,9 @@ export default function ContractsTable() {
     const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row, maintenanceData));
 
     let dataToDisplay;
+    let openContractsFromSearch = [];
+    let closedContractsFromSearch = [];
+
     if (debouncedSearchTerm.trim() === '') {
         if (filterMode === FILTER_MODES.MISMATCH) dataToDisplay = mismatchRows;
         else if (filterMode === FILTER_MODES.SWITCHBACK) dataToDisplay = switchbackRows;
@@ -241,6 +244,8 @@ export default function ContractsTable() {
                 val => val && val.toString().toLowerCase().includes(s)
             )
         );
+        openContractsFromSearch = dataToDisplay.filter(c => c.type === 'open');
+        closedContractsFromSearch = dataToDisplay.filter(c => c.type !== 'open');
     }
 
     return {
@@ -248,7 +253,9 @@ export default function ContractsTable() {
       mismatchCount: mismatchRows.length,
       switchbackCount: switchbackRows.length,
       invygoCounts,
-      openContractsCount: openContracts.length
+      openContractsCount: openContracts.length,
+      openContractsFromSearch,
+      closedContractsFromSearch
     };
   }, [allContracts, maintenanceData, debouncedSearchTerm, filterMode]);
 
@@ -535,7 +542,37 @@ We are here to serve you, Thank you.`;
           <p className="loading-message">Loading all contracts...</p>
         ) : error ? (
           <p className="error-message">{error}</p>
+        ) : debouncedSearchTerm.trim() !== '' ? (
+          // عرض نتائج البحث في جدولين منفصلين
+          <div>
+            {openContractsFromSearch.length > 0 && (
+              <div className="table-section">
+                <h2 className="section-title">📋 Open Contracts ({openContractsFromSearch.length})</h2>
+                <DataTable 
+                  data={openContractsFromSearch} 
+                  headers={getHeadersForData(openContractsFromSearch)} 
+                  onPhoneClick={handlePhoneClick}
+                  onCustomerClick={handleCustomerClick}
+                />
+              </div>
+            )}
+            {closedContractsFromSearch.length > 0 && (
+              <div className="table-section">
+                <h2 className="section-title">🔒 Closed Contracts ({closedContractsFromSearch.length})</h2>
+                <DataTable 
+                  data={closedContractsFromSearch} 
+                  headers={getHeadersForData(closedContractsFromSearch)} 
+                  onPhoneClick={handlePhoneClick}
+                  onCustomerClick={handleCustomerClick}
+                />
+              </div>
+            )}
+            {openContractsFromSearch.length === 0 && closedContractsFromSearch.length === 0 && (
+              <p className="no-contracts-message">No contracts found for your search.</p>
+            )}
+          </div>
         ) : (
+          // عرض العقود المفتوحة فقط عند عدم وجود بحث
           <div id="contracts-table-container">
               <DataTable 
                 data={filteredData} 
