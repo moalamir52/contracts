@@ -5,6 +5,7 @@ export default function MultiContractPage({ onBack }) {
   const [results, setResults] = useState([]);
   const [singleCarContracts, setSingleCarContracts] = useState([]);
   const [uploadSummary, setUploadSummary] = useState(null); // State for upload summary
+  const [bookingIdMap, setBookingIdMap] = useState(new Map());
 
   // Retrieve results from localStorage when the page opens
   useEffect(() => {
@@ -54,6 +55,37 @@ export default function MultiContractPage({ onBack }) {
 
   // Loading state when uploading file
   const [uploading, setUploading] = useState(false);
+  
+  const handleBookingIdFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = window.XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = window.XLSX.utils.sheet_to_json(worksheet);
+
+            const newBookingIdMap = new Map();
+            jsonData.forEach(row => {
+                const agreement = row['Agreement'];
+                const bookingId = row['Booking ID'];
+                if (agreement && bookingId) {
+                    newBookingIdMap.set(String(agreement), String(bookingId));
+                }
+            });
+            setBookingIdMap(newBookingIdMap);
+        } catch (error) {
+            console.error("Error processing booking ID file:", error);
+            alert('Error processing booking ID file.');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  
   // Upload file and analyze multi-car contracts
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -402,6 +434,12 @@ export default function MultiContractPage({ onBack }) {
           ⬆️ Upload Multi-Car File
           <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: 'none' }} />
         </label>
+        <label style={{
+            background: '#6a1b9a', color: '#ffd600', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'none', fontSize: 16, display: 'inline-block', minWidth: 180, textAlign: 'center', marginBottom: 0
+        }}>
+          📎 Upload Invygo ID File
+          <input type="file" accept=".csv,.xlsx,.xls" onChange={handleBookingIdFileUpload} style={{ display: 'none' }} />
+        </label>
       </div>
 
       {uploadSummary && (
@@ -516,6 +554,7 @@ export default function MultiContractPage({ onBack }) {
             <tr style={{ background: 'linear-gradient(90deg,#ffd600 60%,#fffde7 100%)', color: '#6a1b9a', fontSize: 18 }}>
               <th style={{ minWidth: 20, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>#</th>
               <th style={{ minWidth: 50, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Contract No.</th>
+              <th style={{ minWidth: 50, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Booking ID</th>
               <th style={{ minWidth: 250, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Customer</th>
               <th style={{ minWidth: 120, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Cars (Plate & Dates)</th>
               <th style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: 17 }}>Cars Count</th>
@@ -523,7 +562,7 @@ export default function MultiContractPage({ onBack }) {
           </thead>
           <tbody>
             {filteredResults.length === 0 ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#888', fontSize: 18 }}>No data</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#888', fontSize: 18 }}>No data</td></tr>
             ) : filteredResults.map((row, idx) => (
               <tr key={idx} style={{ background: idx % 2 === 0 ? '#fffde7' : '#fff', transition: 'background 0.2s' }}>
                 <td style={{ padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15 }}>{idx + 1}</td>
@@ -535,6 +574,9 @@ export default function MultiContractPage({ onBack }) {
                   >
                     {row.contract}
                   </button>
+                </td>
+                <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15 }}>
+                  {bookingIdMap.get(row.contract) || 'Branch'}
                 </td>
                 <td style={{ minWidth: 140, maxWidth: 180, width: 140, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row['Customer Name']}</td>
                 <td style={{ minWidth: 120, padding: 0, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15, background: '#fff' }}>
@@ -623,22 +665,26 @@ export default function MultiContractPage({ onBack }) {
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{selectedContract.contract}</td>
                 </tr>
                 <tr style={{ background: '#fffde7' }}>
+                  <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Booking ID</td>
+                  <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{bookingIdMap.get(selectedContract.contract) || 'Branch'}</td>
+                </tr>
+                <tr style={{ background: '#fff' }}>
                   <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Cars Count</td>
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{selectedContract.carsCount}</td>
                 </tr>
-                <tr style={{ background: '#fff' }}>
+                <tr style={{ background: '#fffde7' }}>
                   <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Pick-up Date</td>
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{(selectedContract['Pick-up Date'] || '').replace(/ ?\+0?4:?0{0,2}/gi, '').trim()}</td>
                 </tr>
-                <tr style={{ background: '#fffde7' }}>
+                <tr style={{ background: '#fff' }}>
                   <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Drop-off Date</td>
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{(selectedContract['Drop-off Date'] || '').replace(/ ?\+0?4:?0{0,2}/gi, '').trim()}</td>
                 </tr>
-                <tr style={{ background: '#fff' }}>
+                <tr style={{ background: '#fffde7' }}>
                   <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Customer Name</td>
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{selectedContract['Customer Name']}</td>
                 </tr>
-                <tr style={{ background: '#fffde7' }}>
+                <tr style={{ background: '#fff' }}>
                   <td style={{ fontWeight: 'bold', color: '#6a1b9a', padding: '8px 12px', border: '1px solid #ffd600' }}>Customer Phone</td>
                   <td style={{ padding: '8px 12px', border: '1px solid #ffd600' }}>{selectedContract['Customer Phone']}</td>
                 </tr>

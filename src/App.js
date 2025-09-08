@@ -498,7 +498,7 @@ We are here to serve you, Thank you.`;
   
   // ...existing code...
   if (showMultiContract) {
-    return <MultiContractPage onBack={() => setShowMultiContract(false)} />;
+    return <MultiContractPage allContracts={allContracts} onBack={() => setShowMultiContract(false)} />;
   }
 
   return (
