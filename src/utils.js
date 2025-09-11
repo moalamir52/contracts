@@ -116,8 +116,25 @@ const analyzeMultiCarContracts = (data) => {
 
 const formatDateForDisplay = (dateStr) => {
     if (!dateStr || dateStr.trim() === '') return '';
-    // Takes the part before the first space, to remove the time part
-    return dateStr.split(' ')[0];
+    
+    // Handle different date formats and remove time
+    let cleanDate = dateStr.toString();
+    
+    // Remove time part if it exists (format: DD-MM-YYYYHHMM or DD/MM/YYYYHHMM)
+    const dateTimeMatch = cleanDate.match(/^(\d{1,2}[-\/]\d{1,2}[-\/]\d{4})(\d{4})?/);
+    if (dateTimeMatch) {
+        cleanDate = dateTimeMatch[1]; // Get only the date part
+    } else {
+        // Handle space-separated date and time
+        cleanDate = cleanDate.split(' ')[0];
+    }
+    
+    // Convert all dates to DD/MM/YYYY format
+    if (cleanDate.includes('-')) {
+        return cleanDate.replace(/-/g, '/');
+    }
+    
+    return cleanDate;
 };
 
 const parseSheetDate = (dateStr) => {

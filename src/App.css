@@ -165,6 +165,11 @@
   background-color: #ccffcc;
 }
 
+.expired-row {
+  background-color: #ffe0b2;
+  border-left: 4px solid #ff5722;
+}
+
 .mismatch-row {
   background-color: #ffcccc;
 }

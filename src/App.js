@@ -24,7 +24,8 @@ import './App.css';
 const FILTER_MODES = {
   ALL: 'all',
   MISMATCH: 'mismatch',
-  SWITCHBACK: 'switchback'
+  SWITCHBACK: 'switchback',
+  EXPIRED: 'expired'
 };
 
 const DATE_COLUMNS = ['pickupDate', 'dropoffDate', 'replacementDate', 'revenueDate'];
@@ -34,6 +35,8 @@ export default function ContractsTable() {
   const [showMultiContract, setShowMultiContract] = useState(false);
   const [allContracts, setAllContracts] = useState([]);
   const [maintenanceData, setMaintenanceData] = useState([]);
+  const [carsData, setCarsData] = useState([]);
+  const [showExpiredCars, setShowExpiredCars] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
 
@@ -61,7 +64,7 @@ export default function ContractsTable() {
   const [multiCarResults, setMultiCarResults] = useState([]);
   
   const [columnWidths, setColumnWidths] = useState({
-      customer: 220, contractNo: 160, invygoPlate: 150, 
+      customer: 140, contractNo: 160, invygoPlate: 150, 
       ejarPlate: 150, phoneNumber: 150, invygoModel: 200, 
       ejarModel: 200, bookingNumber: 150, contractType: 140, 
       pickupBranch: 160, contact: 150, model1: 180, dropoffDate: 150,
@@ -191,12 +194,14 @@ export default function ContractsTable() {
             const closedInvygoUrl = encode(GOOGLE_SHEETS_URLS.closedInvygo);
             const closedOtherUrl = encode(GOOGLE_SHEETS_URLS.closedOther);
             const maintenanceUrl = encode(GOOGLE_SHEETS_URLS.maintenance);
+            const carsUrl = 'https://docs.google.com/spreadsheets/d/1sHvEQMtt3suuxuMA0zhcXk5TYGqZzit0JvGLk1CQ0LI/export?format=csv&gid=804568597';
 
-            const [openRaw, closedInvygoRaw, closedOtherRaw, maintenanceRaw] = await Promise.all([
+            const [openRaw, closedInvygoRaw, closedOtherRaw, maintenanceRaw, carsRaw] = await Promise.all([
                 fetchSheet(openContractsUrl, 'open'),
                 fetchSheet(closedInvygoUrl, 'closed_invygo'),
                 fetchSheet(closedOtherUrl, 'closed_other'),
-                fetchSheet(maintenanceUrl, 'open')
+                fetchSheet(maintenanceUrl, 'open'),
+                fetchSheet(carsUrl, 'cars')
             ]);
 
             const normalizedOpen = normalizeData(openRaw, 'open');
@@ -205,6 +210,7 @@ export default function ContractsTable() {
             
             setAllContracts([...normalizedOpen, ...normalizedClosedInvygo, ...normalizedClosedOther]);
             setMaintenanceData(maintenanceRaw);
+            setCarsData(carsRaw);
         } catch (err) {
             console.error("Failed to load data from Google Sheets:", err);
             setError(`Failed to load data. Please check your internet connection. Error: ${err.message}`);
@@ -218,7 +224,93 @@ export default function ContractsTable() {
   }, []);
   
 
-  const { filteredData, mismatchCount, switchbackCount, invygoCounts, openContractsCount, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
+  // Parse date in DD/MM/YYYY format
+  const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      
+      // Handle DD/MM/YYYY format
+      const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (match) {
+          const day = parseInt(match[1]);
+          const month = parseInt(match[2]) - 1; // JS months are 0-based
+          const year = parseInt(match[3]);
+          return new Date(year, month, day);
+      }
+      
+      // Fallback to native Date parsing
+      return new Date(dateStr);
+  };
+
+  // Check if car registration is expired
+  const isCarExpired = (plateNo) => {
+      if (!plateNo || !carsData.length) return false;
+      const normalizedPlate = normalize(plateNo);
+      const car = carsData.find(car => normalize(car['Plate No']) === normalizedPlate);
+      if (!car || !car['Reg Exp']) return false;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of day
+      
+      const expDate = parseDate(car['Reg Exp']);
+      if (!expDate || isNaN(expDate.getTime())) return false;
+      
+      expDate.setHours(23, 59, 59, 999); // Set to end of expiry day
+      return expDate < today;
+  };
+
+  // Get expiry date for a plate
+  const getExpiryDate = (plateNo) => {
+      if (!plateNo || !carsData.length) return null;
+      const normalizedPlate = normalize(plateNo);
+      const car = carsData.find(car => normalize(car['Plate No']) === normalizedPlate);
+      return car ? car['Reg Exp'] : null;
+  };
+
+  // Debug function - add console logging
+  useEffect(() => {
+      if (carsData.length > 0) {
+          console.log('Cars data loaded:', carsData.length, 'cars');
+          console.log('Sample car:', carsData[0]);
+          
+          // Test specific plates
+          const testPlates = ['S 61759', 'S 68485'];
+          testPlates.forEach(plate => {
+              const car = carsData.find(c => normalize(c['Plate No']) === normalize(plate));
+              if (car) {
+                  const expDate = parseDate(car['Reg Exp']);
+                  const today = new Date();
+                  console.log(`Plate ${plate}:`, {
+                      found: true,
+                      rawExpiry: car['Reg Exp'],
+                      parsedExpiry: expDate,
+                      today: today,
+                      isExpired: expDate < today,
+                      daysUntilExpiry: Math.ceil((expDate - today) / (1000 * 60 * 60 * 24))
+                  });
+              } else {
+                  console.log(`Plate ${plate}: Not found`);
+              }
+          });
+      }
+  }, [carsData]);
+
+  // Get expired cars list
+  const getExpiredCars = () => {
+      if (!carsData.length) return [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      return carsData.filter(car => {
+          if (!car['Reg Exp']) return false;
+          const expDate = parseDate(car['Reg Exp']);
+          if (!expDate || isNaN(expDate.getTime())) return false;
+          
+          expDate.setHours(23, 59, 59, 999);
+          return expDate < today;
+      });
+  };
+
+  const { filteredData, mismatchCount, switchbackCount, expiredCount, invygoCounts, openContractsCount, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
     const openContracts = allContracts.filter(c => c.type === 'open');
     const invygoCounts = openContracts.reduce((acc, row) => {
       const plate = normalize(row.invygoPlate);
@@ -228,6 +320,10 @@ export default function ContractsTable() {
 
     const mismatchRows = openContracts.filter(isMismatch);
     const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row, maintenanceData));
+    const expiredRows = openContracts.filter(contract => {
+        const plates = [contract.ejarPlate, contract.invygoPlate, contract.plateNo1, contract.plateNo2].filter(Boolean);
+        return plates.some(plate => isCarExpired(plate));
+    });
 
     let dataToDisplay;
     let openContractsFromSearch = [];
@@ -236,6 +332,7 @@ export default function ContractsTable() {
     if (debouncedSearchTerm.trim() === '') {
         if (filterMode === FILTER_MODES.MISMATCH) dataToDisplay = mismatchRows;
         else if (filterMode === FILTER_MODES.SWITCHBACK) dataToDisplay = switchbackRows;
+        else if (filterMode === FILTER_MODES.EXPIRED) dataToDisplay = expiredRows;
         else dataToDisplay = openContracts;
     } else {
         const s = debouncedSearchTerm.trim().toLowerCase();
@@ -252,12 +349,13 @@ export default function ContractsTable() {
       filteredData: dataToDisplay,
       mismatchCount: mismatchRows.length,
       switchbackCount: switchbackRows.length,
+      expiredCount: expiredRows.length,
       invygoCounts,
       openContractsCount: openContracts.length,
       openContractsFromSearch,
       closedContractsFromSearch
     };
-  }, [allContracts, maintenanceData, debouncedSearchTerm, filterMode]);
+  }, [allContracts, maintenanceData, carsData, debouncedSearchTerm, filterMode]);
 
   const showToastNotification = (message) => {
     setToastMessage(message);
@@ -342,17 +440,65 @@ We are here to serve you, Thank you.`;
     setExporting(true);
     try {
       const XLSX = window.XLSX;
-      const ws = XLSX.utils.json_to_sheet(filteredData);
+      
+      // Prepare data with expiry information
+      const exportData = filteredData.map(row => {
+        const exportRow = { ...row };
+        
+        // Add expiry information for plates
+        const plates = [row.ejarPlate, row.invygoPlate, row.plateNo1, row.plateNo2].filter(Boolean);
+        const expiredPlates = plates.filter(plate => isCarExpired(plate));
+        
+        if (expiredPlates.length > 0) {
+          exportRow['Expired_Cars'] = 'YES';
+          exportRow['Expired_Plates'] = expiredPlates.join(', ');
+          exportRow['Expiry_Dates'] = expiredPlates.map(plate => getExpiryDate(plate)).join(', ');
+        } else {
+          exportRow['Expired_Cars'] = 'NO';
+          exportRow['Expired_Plates'] = '';
+          exportRow['Expiry_Dates'] = '';
+        }
+        
+        return exportRow;
+      });
+      
+      const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Contracts");
-      XLSX.writeFile(wb, `Contracts_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
-      showToastNotification("Excel file exported successfully!");
+      
+      // Generate appropriate filename based on filter mode
+      const today = new Date().toISOString().slice(0,10);
+      let filename;
+      
+      if (debouncedSearchTerm.trim() !== '') {
+        filename = `Search_Results_${today}.xlsx`;
+      } else {
+        switch (filterMode) {
+          case FILTER_MODES.ALL:
+            filename = `All_Contracts_${today}.xlsx`;
+            break;
+          case FILTER_MODES.MISMATCH:
+            filename = `Replacement_Contracts_${today}.xlsx`;
+            break;
+          case FILTER_MODES.SWITCHBACK:
+            filename = `Switch_Back_Contracts_${today}.xlsx`;
+            break;
+          case FILTER_MODES.EXPIRED:
+            filename = `Expired_Cars_Contracts_${today}.xlsx`;
+            break;
+          default:
+            filename = `Contracts_Report_${today}.xlsx`;
+        }
+      }
+      
+      XLSX.writeFile(wb, filename);
+      showToastNotification(`Excel file exported: ${filename}`);
     } catch (error) {
       showToastNotification("Export failed!");
     } finally {
       setExporting(false);
     }
-  }, [xlsxReady, filteredData]);
+  }, [xlsxReady, filteredData, filterMode, debouncedSearchTerm, isCarExpired, getExpiryDate]);
   
   const headersConfig = {
   open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate'],
@@ -411,8 +557,10 @@ We are here to serve you, Thank you.`;
             const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
             const mismatch = row.type === 'open' && isMismatch(row);
             const isCarRepaired = mismatch && getLatestDateIn(row, maintenanceData);
+            const hasExpiredCar = row.type === 'open' && [row.ejarPlate, row.invygoPlate, row.plateNo1, row.plateNo2].filter(Boolean).some(plate => isCarExpired(plate));
             
             const rowClassName = isDuplicated ? "duplicated-row"
+              : hasExpiredCar ? "expired-row"
               : isCarRepaired ? "repaired-row"
               : mismatch ? "mismatch-row"
               : idx % 2 === 0 ? "even-row"
@@ -459,6 +607,15 @@ We are here to serve you, Thank you.`;
                       );
                   } else if (headerKey === 'contractType') {
                     content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
+                  } else if (row.type === 'open' && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate')) {
+                      const isExpired = isCarExpired(value);
+                      const expDate = getExpiryDate(value);
+                      content = (
+                          <span style={{ color: isExpired ? '#d32f2f' : 'inherit' }}>
+                              {value} {isExpired && '⚠️'}
+                              {expDate && <div style={{ fontSize: '0.8em', color: isExpired ? '#d32f2f' : '#666' }}>Exp: {expDate}</div>}
+                          </span>
+                      );
                   } else if (row.type === 'open' && headerKey === 'phoneNumber') {
                       content = (
                           <span onClick={(e) => onPhoneClick(e, row)} className="phone-link">
@@ -485,6 +642,11 @@ We are here to serve you, Thank you.`;
                             }
                           </div>
                         )}
+                        {hasExpiredCar && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate') && isCarExpired(value) && (
+                          <div className="duplicated-info" style={{ color: '#d32f2f' }}>
+                            ⚠️ Registration Expired!
+                          </div>
+                        )}
                     </td>
                   );
                 })}
@@ -496,6 +658,70 @@ We are here to serve you, Thank you.`;
     </div>
   ));
   
+  // Show expired cars page
+  if (showExpiredCars) {
+      const expiredCars = getExpiredCars();
+      return (
+          <div className="contracts-dashboard">
+              <div style={{ margin: '0 auto' }}>
+                  <header className="dashboard-header">
+                      <h1 style={{ color: '#d32f2f' }}>⚠️ Expired Cars ({expiredCars.length})</h1>
+                      <button 
+                          className="control-button" 
+                          onClick={() => setShowExpiredCars(false)}
+                          style={{ marginBottom: 20 }}
+                      >
+                          ← Back to Contracts
+                      </button>
+                  </header>
+                  
+                  <div className="data-table-container">
+                      <table className="data-table">
+                          <thead className="table-header">
+                              <tr>
+                                  <th className="table-cell">Plate No.</th>
+                                  <th className="table-cell">Model</th>
+                                  <th className="table-cell">Expiry Date</th>
+                                  <th className="table-cell">Days Expired</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {expiredCars.map((car, index) => {
+                                  const expDate = parseDate(car['Reg Exp']);
+                                  const today = new Date();
+                                  const daysDiff = Math.floor((today - expDate) / (1000 * 60 * 60 * 24));
+                                  
+                                  return (
+                                      <tr key={index} className="mismatch-row">
+                                          <td className="table-cell" style={{ fontWeight: 'bold', color: '#d32f2f' }}>
+                                              {car['Plate No']} ⚠️
+                                          </td>
+                                          <td className="table-cell">
+                                              {car['Model'] || car['Make'] || 'غير محدد'}
+                                          </td>
+                                          <td className="table-cell" style={{ color: '#d32f2f' }}>
+                                              {car['Reg Exp']}
+                                          </td>
+                                          <td className="table-cell" style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                                              {daysDiff} days
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
+                          </tbody>
+                      </table>
+                  </div>
+                  
+                  {expiredCars.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: 40, color: '#4caf50', fontSize: 18 }}>
+                          ✓ No expired cars found
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
   // ...existing code...
   if (showMultiContract) {
     return <MultiContractPage allContracts={allContracts} onBack={() => setShowMultiContract(false)} />;
@@ -534,6 +760,7 @@ We are here to serve you, Thank you.`;
         <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.ALL)}>📋 All ({openContractsCount})</button>
         <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.MISMATCH)}>♻️ Replacements ({mismatchCount})</button>
         <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.SWITCHBACK)}>🔁 Switch Back ({switchbackCount})</button>
+        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.EXPIRED)} style={{backgroundColor: expiredCount > 0 ? '#d32f2f' : undefined, color: expiredCount > 0 ? 'white' : undefined}}>⚠️ Expired Cars ({expiredCount})</button>
         <button className="control-button" onClick={() => setShowMultiContract(true)}>🚗 Multi-Car Contracts</button>
       </div>
     )}
