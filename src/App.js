@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import MultiContractPage from "./components/MultiContractPage";
+import ColumnMenu from './components/ColumnMenu';
 import Toast from "./components/Toast";
 import ColumnResizer from "./components/ColumnResizer";
 import ContractModal from "./components/ContractModal";
@@ -30,8 +31,75 @@ const FILTER_MODES = {
 
 const DATE_COLUMNS = ['pickupDate', 'dropoffDate', 'replacementDate', 'revenueDate'];
 
+// دالة استخراج بيانات issue بناءً على invygoPlate فقط وعمود Vehicle في maintenanceData
+const getIssueForRow = (row, maintenanceData) => {
+  if (!row.invygoPlate || !maintenanceData) {
+    return '';
+  }
+  const normalizedPlate = normalize(row.invygoPlate);
+  const matchingVehicles = maintenanceData.filter(
+    (m) => normalize(m.Vehicle) === normalizedPlate
+  );
+  // Debug: طباعة معلومات المطابقة
+  if (matchingVehicles.length > 0) {
+    const vehicleWithoutDateIn = matchingVehicles.find(
+      (m) => !m['Date IN'] || m['Date IN'].trim() === ''
+    );
+    if (vehicleWithoutDateIn) {
+  // ...
+      return vehicleWithoutDateIn['Damage Details'] || '';
+    }
+    // إذا لم يوجد أي صف بدون Date IN، لا تعرض أي نتيجة
+  // ...
+    return '';
+  } else {
+  // ...
+  }
+  return '';
+};
+
 // Main component for the contracts table
 export default function ContractsTable() {
+  // جلب البيانات عبر عامل ويب
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    // استخدم عامل الويب من مجلد public
+    const worker = new window.Worker(process.env.PUBLIC_URL + '/contractsDataWorker.js');
+    worker.postMessage({
+      googleSheetsUrls: GOOGLE_SHEETS_URLS,
+      columnMappings: COLUMN_MAPPINGS
+    });
+    worker.onmessage = (event) => {
+      const { allContracts, maintenanceData, carsData, error } = event.data;
+      if (error) {
+        setError(error);
+        setLoading(false);
+      } else {
+        setAllContracts(allContracts || []);
+        setMaintenanceData(maintenanceData || []);
+        setCarsData(carsData || []);
+        setLoading(false);
+      }
+    };
+    return () => worker.terminate();
+  }, []);
+  // خاصية الأعمدة المختارة للعرض مع الحفظ في localStorage
+  const VISIBLE_COLUMNS_KEY = 'contracts_visible_columns';
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem(VISIBLE_COLUMNS_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    if (visibleColumns) {
+      localStorage.setItem(VISIBLE_COLUMNS_KEY, JSON.stringify(visibleColumns));
+    }
+  }, [visibleColumns]);
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [showMultiContract, setShowMultiContract] = useState(false);
   const [allContracts, setAllContracts] = useState([]);
   const [maintenanceData, setMaintenanceData] = useState([]);
@@ -77,6 +145,8 @@ export default function ContractsTable() {
     }));
   };
 
+  
+
   // Function to show toast messages
   const showToastMessage = (message) => {
     setToastMessage(message);
@@ -100,7 +170,7 @@ export default function ContractsTable() {
 
         // طباعة أسماء الأعمدة في أول صف
         if (jsonData.length > 0) {
-          console.log('Columns in uploaded file:', Object.keys(jsonData[0]));
+    // ...
           alert('Columns: ' + Object.keys(jsonData[0]).join(', '));
         } else {
           alert('No data found in file!');
@@ -178,50 +248,7 @@ export default function ContractsTable() {
       });
   };
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
-    script.async = true;
-    script.onload = () => setXlsxReady(true);
-    document.body.appendChild(script);
-
-    const loadAllData = async () => {
-        setLoading(true);
-        try {
-            const encode = (url) => PROXY_URL + encodeURIComponent(url);
-
-            const openContractsUrl = encode(GOOGLE_SHEETS_URLS.openContracts);
-            const closedInvygoUrl = encode(GOOGLE_SHEETS_URLS.closedInvygo);
-            const closedOtherUrl = encode(GOOGLE_SHEETS_URLS.closedOther);
-            const maintenanceUrl = encode(GOOGLE_SHEETS_URLS.maintenance);
-            const carsUrl = 'https://docs.google.com/spreadsheets/d/1sHvEQMtt3suuxuMA0zhcXk5TYGqZzit0JvGLk1CQ0LI/export?format=csv&gid=804568597';
-
-            const [openRaw, closedInvygoRaw, closedOtherRaw, maintenanceRaw, carsRaw] = await Promise.all([
-                fetchSheet(openContractsUrl, 'open'),
-                fetchSheet(closedInvygoUrl, 'closed_invygo'),
-                fetchSheet(closedOtherUrl, 'closed_other'),
-                fetchSheet(maintenanceUrl, 'open'),
-                fetchSheet(carsUrl, 'cars')
-            ]);
-
-            const normalizedOpen = normalizeData(openRaw, 'open');
-            const normalizedClosedInvygo = normalizeData(closedInvygoRaw, 'closed_invygo');
-            const normalizedClosedOther = normalizeData(closedOtherRaw, 'closed_other');
-            
-            setAllContracts([...normalizedOpen, ...normalizedClosedInvygo, ...normalizedClosedOther]);
-            setMaintenanceData(maintenanceRaw);
-            setCarsData(carsRaw);
-        } catch (err) {
-            console.error("Failed to load data from Google Sheets:", err);
-            setError(`Failed to load data. Please check your internet connection. Error: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    loadAllData();
-    return () => document.body.removeChild(script);
-  }, []);
+  
   
 
   // Parse date in DD/MM/YYYY format
@@ -269,8 +296,7 @@ export default function ContractsTable() {
   // Debug function - add console logging
   useEffect(() => {
       if (carsData.length > 0) {
-          console.log('Cars data loaded:', carsData.length, 'cars');
-          console.log('Sample car:', carsData[0]);
+          // ...
           
           // Test specific plates
           const testPlates = ['S 61759', 'S 68485'];
@@ -279,16 +305,9 @@ export default function ContractsTable() {
               if (car) {
                   const expDate = parseDate(car['Reg Exp']);
                   const today = new Date();
-                  console.log(`Plate ${plate}:`, {
-                      found: true,
-                      rawExpiry: car['Reg Exp'],
-                      parsedExpiry: expDate,
-                      today: today,
-                      isExpired: expDate < today,
-                      daysUntilExpiry: Math.ceil((expDate - today) / (1000 * 60 * 60 * 24))
-                  });
+          // ...
               } else {
-                  console.log(`Plate ${plate}: Not found`);
+                  // ...
               }
           });
       }
@@ -310,21 +329,36 @@ export default function ContractsTable() {
       });
   };
 
-  const { filteredData, mismatchCount, switchbackCount, expiredCount, invygoCounts, openContractsCount, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
-    const openContracts = allContracts.filter(c => c.type === 'open');
-    const invygoCounts = openContracts.reduce((acc, row) => {
+  const openContracts = useMemo(() => allContracts.filter(c => c.type === 'open'), [allContracts]);
+
+
+  // invygoCounts: يعتمد فقط على openContracts
+  const invygoCounts = useMemo(() => {
+    return openContracts.reduce((acc, row) => {
       const plate = normalize(row.invygoPlate);
       if (plate) acc[plate] = (acc[plate] || 0) + 1;
       return acc;
     }, {});
+  }, [openContracts]);
 
-    const mismatchRows = openContracts.filter(isMismatch);
-    const switchbackRows = mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row, maintenanceData));
-    const expiredRows = openContracts.filter(contract => {
+  // mismatchRows: يعتمد على openContracts و isMismatch
+  const mismatchRows = useMemo(() => openContracts.filter(isMismatch), [openContracts]);
+
+  // switchbackRows: يعتمد على mismatchRows و maintenanceData
+  const switchbackRows = useMemo(() => {
+    return mismatchRows.filter(row => isMismatch(row) && getLatestDateIn(row, maintenanceData));
+  }, [mismatchRows, maintenanceData]);
+
+  // expiredRows: يعتمد على openContracts و carsData
+  const expiredRows = useMemo(() => {
+    return openContracts.filter(contract => {
         const plates = [contract.ejarPlate, contract.invygoPlate, contract.plateNo1, contract.plateNo2].filter(Boolean);
         return plates.some(plate => isCarExpired(plate));
     });
+  }, [openContracts, carsData]);
 
+  // dataToDisplay: يعتمد على filterMode و debouncedSearchTerm و mismatchRows و switchbackRows و expiredRows و openContracts و allContracts
+  const { filteredData, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
     let dataToDisplay;
     let openContractsFromSearch = [];
     let closedContractsFromSearch = [];
@@ -347,15 +381,15 @@ export default function ContractsTable() {
 
     return {
       filteredData: dataToDisplay,
-      mismatchCount: mismatchRows.length,
-      switchbackCount: switchbackRows.length,
-      expiredCount: expiredRows.length,
-      invygoCounts,
-      openContractsCount: openContracts.length,
       openContractsFromSearch,
       closedContractsFromSearch
     };
-  }, [allContracts, maintenanceData, carsData, debouncedSearchTerm, filterMode]);
+  }, [filterMode, debouncedSearchTerm, mismatchRows, switchbackRows, expiredRows, openContracts, allContracts]);
+
+  const mismatchCount = useMemo(() => mismatchRows.length, [mismatchRows]);
+  const switchbackCount = useMemo(() => switchbackRows.length, [switchbackRows]);
+  const expiredCount = useMemo(() => expiredRows.length, [expiredRows]);
+  const openContractsCount = useMemo(() => openContracts.length, [openContracts]);
 
   const showToastNotification = (message) => {
     setToastMessage(message);
@@ -501,7 +535,7 @@ We are here to serve you, Thank you.`;
   }, [xlsxReady, filteredData, filterMode, debouncedSearchTerm, isCarExpired, getExpiryDate]);
   
   const headersConfig = {
-  open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate'],
+  open: ['contractNo', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'phoneNumber', 'pickupDate', 'dropoffDate', 'issue'],
       closed_invygo: ['contractNo', 'revenueDate', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'model1', 'ejarPlate', 'invygoModel', 'pickupDate', 'contact', 'dropoffDate'],
       closed_other: ['contractNo', 'revenueDate', 'bookingNumber', 'customer', 'pickupBranch', 'invygoPlate', 'invygoModel', 'pickupDate', 'dropoffDate'],
   master: ['contractNo', 'contractType', 'bookingNumber', 'customer', 'invygoModel', 'invygoPlate', 'ejarModel', 'ejarPlate', 'model1', 'phoneNumber', 'pickupBranch', 'pickupDate', 'replacementDate', 'dropoffDate', 'contact'],
@@ -514,6 +548,7 @@ We are here to serve you, Thank you.`;
     ejarPlate: 'Rep Plate no.', phoneNumber: 'Phone Number', pickupBranch: 'Pick-up Branch',
     pickupDate: 'Pick-up Date', replacementDate: 'Replacement Date', dropoffDate: 'Drop-off Date',
     model1: 'Model (Repeated)', contact: 'Contact', contractType: 'Contract Type',
+    issue: 'Issue'
   };
 
   const getHeadersForData = useMemo(() => (data) => {
@@ -538,13 +573,29 @@ We are here to serve you, Thank you.`;
     return headersConfig.master.filter(key => populatedKeys.has(key));
   }, [filterMode, debouncedSearchTerm]);
   
-  const DataTable = memo(({ data, headers, onPhoneClick, onCustomerClick }) => (
+  const DataTable = memo(({ data, headers, onPhoneClick, onCustomerClick, maintenanceData }) => (
     <div className="data-table-container">
       <table className="data-table">
         <thead className="table-header">
           <tr>
-            <th className="table-cell" style={{width: 50}}>#<ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} /></th>
-            {headers.map((headerKey) => (
+            <th className="table-cell" style={{width: 50, position: 'relative'}}>
+              #<ColumnResizer onResize={(newWidth) => handleColumnResize('#', newWidth)} />
+              <button
+                style={{ marginLeft: 6, cursor: 'pointer', background: 'none', border: 'none', fontSize: 18 }}
+                title="تخصيص الأعمدة"
+                onClick={e => { e.stopPropagation(); setShowColumnMenu(v => !v); }}
+              >⚙️</button>
+              {showColumnMenu && (
+                <ColumnMenu
+                  headers={headers}
+                  visibleColumns={visibleColumns}
+                  setVisibleColumns={setVisibleColumns}
+                  setShowColumnMenu={setShowColumnMenu}
+                  headerDisplayNames={headerDisplayNames}
+                />
+              )}
+            </th>
+            {(visibleColumns ? headers.filter(h => visibleColumns.includes(h)) : headers).map((headerKey) => (
               <th key={headerKey} className="table-cell" style={{width: columnWidths[headerKey] || 150}}>
                 {headerDisplayNames[headerKey] || headerKey}
                 <ColumnResizer onResize={(newWidth) => handleColumnResize(headerKey, newWidth)} />
@@ -584,7 +635,7 @@ We are here to serve you, Thank you.`;
                       {idx + 1}
                   </span>
                 </td>
-                {headers.map((headerKey) => {
+                {(visibleColumns ? headers.filter(h => visibleColumns.includes(h)) : headers).map((headerKey) => {
                   const isDateColumn = DATE_COLUMNS.includes(headerKey);
                   let value = row[headerKey] || '';
                   if (isDateColumn) {
@@ -626,6 +677,8 @@ We are here to serve you, Thank you.`;
                     content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="contract-link">{value}</a>;
                   } else if (row.type === 'open' && headerKey === 'bookingNumber') {
                     content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="booking-link">{value}</a>;
+                  } else if (headerKey === 'issue') {
+                    content = getIssueForRow(row, maintenanceData);
                   }
 
                   return (
@@ -722,7 +775,6 @@ We are here to serve you, Thank you.`;
       );
   }
 
-  // ...existing code...
   if (showMultiContract) {
     return <MultiContractPage allContracts={allContracts} onBack={() => setShowMultiContract(false)} />;
   }
@@ -780,6 +832,7 @@ We are here to serve you, Thank you.`;
                   headers={getHeadersForData(openContractsFromSearch)} 
                   onPhoneClick={handlePhoneClick}
                   onCustomerClick={handleCustomerClick}
+                  maintenanceData={maintenanceData}
                 />
               </div>
             )}
@@ -791,6 +844,7 @@ We are here to serve you, Thank you.`;
                   headers={getHeadersForData(closedContractsFromSearch)} 
                   onPhoneClick={handlePhoneClick}
                   onCustomerClick={handleCustomerClick}
+                  maintenanceData={maintenanceData}
                 />
               </div>
             )}
@@ -806,6 +860,7 @@ We are here to serve you, Thank you.`;
                 headers={getHeadersForData(filteredData)} 
                 onPhoneClick={handlePhoneClick}
                 onCustomerClick={handleCustomerClick}
+                maintenanceData={maintenanceData}
               />
               {filteredData.length === 0 && !loading && (
                 <p className="no-contracts-message">No contracts found for your criteria.</p>
