@@ -1,6 +1,6 @@
 // YELO Protection System for Business Bay Contracts
 (function() {
-  const YELO_BASE_URL = 'https://moalamir52.github.io/Yelo/';
+  const YELO_BASE_URL = 'https://yelo-dashboard.firebaseapp.com/';
   const PROJECT_NAME = 'contracts';
   
   function checkAuth() {

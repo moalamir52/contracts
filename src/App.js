@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import AuthGuard from "./AuthGuard";
 import MultiContractPage from "./components/MultiContractPage";
 import ColumnMenu from './components/ColumnMenu';
 import Toast from "./components/Toast";
@@ -780,6 +781,7 @@ We are here to serve you, Thank you.`;
   }
 
   return (
+    <AuthGuard>
     <div className="contracts-dashboard">
       <a
         href="https://moalamir52.github.io/Yelo/#dashboard"
@@ -880,5 +882,6 @@ We are here to serve you, Thank you.`;
       )}
       <Toast message={toastMessage} show={showToast} />
     </div>
+    </AuthGuard>
   );
 }
