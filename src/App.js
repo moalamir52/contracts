@@ -71,11 +71,19 @@ export default function ContractsTable() {
       columnMappings: COLUMN_MAPPINGS
     });
     worker.onmessage = (event) => {
-      const { allContracts, maintenanceData, carsData, error } = event.data;
+      const { allContracts, maintenanceData, carsData, partialData, progress, error } = event.data;
+      
       if (error) {
         setError(error);
         setLoading(false);
-      } else {
+      } else if (partialData) {
+        // تحديث البيانات الجزئية (العقود المفتوحة أولاً)
+        setAllContracts(partialData.allContracts || []);
+        setMaintenanceData(partialData.maintenanceData || []);
+        setCarsData(partialData.carsData || []);
+        // لا نوقف التحميل هنا لأن باقي البيانات لسه جاية
+      } else if (allContracts) {
+        // البيانات النهائية الكاملة
         setAllContracts(allContracts || []);
         setMaintenanceData(maintenanceData || []);
         setCarsData(carsData || []);
@@ -122,6 +130,18 @@ export default function ContractsTable() {
   const [selectedContract, setSelectedContract] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [xlsxReady, setXlsxReady] = useState(false);
+  
+  // تحميل مكتبة XLSX
+  useEffect(() => {
+    if (window.XLSX) {
+      setXlsxReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => setXlsxReady(true);
+    document.head.appendChild(script);
+  }, []);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [dropdown, setDropdown] = useState({ visible: false, row: null, position: null });
@@ -805,6 +825,14 @@ We are here to serve you, Thank you.`;
             />
             <button className="control-button" onClick={() => setSearchTerm("")}>❌ Reset</button>
             <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
+            <button className="control-button" onClick={() => {
+              // مسح الـ cache وإعادة تحميل البيانات
+              localStorage.clear();
+              if ('indexedDB' in window) {
+                indexedDB.deleteDatabase('ContractsCache');
+              }
+              window.location.reload();
+            }} title="مسح الذاكرة المؤقتة وإعادة تحميل البيانات">🔄 Refresh Cache</button>
         </div>
 
     {debouncedSearchTerm.trim() === '' && (
@@ -818,7 +846,7 @@ We are here to serve you, Thank you.`;
     )}
 
         {loading ? (
-          <p className="loading-message">Loading all contracts...</p>
+          <p className="loading-message">Loading...</p>
         ) : error ? (
           <p className="error-message">{error}</p>
         ) : debouncedSearchTerm.trim() !== '' ? (

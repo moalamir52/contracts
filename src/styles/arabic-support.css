@@ -1,0 +1,34 @@
+/* دعم الخطوط العربية */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+body, * {
+  font-family: 'Noto Sans Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+}
+
+/* تحسين عرض النصوص العربية */
+.arabic-text {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: bidi-override;
+}
+
+/* إعدادات الترميز للجداول */
+table {
+  font-feature-settings: "liga" 1, "kern" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* دعم النصوص المختلطة (عربي وإنجليزي) */
+.mixed-text {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: embed;
+}
+
+/* تحسين عرض أرقام اللوحات العربية */
+.plate-number {
+  font-weight: bold;
+  letter-spacing: 1px;
+  direction: ltr;
+  display: inline-block;
+}
