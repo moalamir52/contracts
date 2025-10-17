@@ -124,6 +124,7 @@ export default function ContractsTable() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
   const [filterMode, setFilterMode] = useState("all");
+  const [isFilterChanging, setIsFilterChanging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
@@ -377,39 +378,35 @@ export default function ContractsTable() {
     });
   }, [openContracts, carsData]);
 
-  // dataToDisplay: يعتمد على filterMode و debouncedSearchTerm و mismatchRows و switchbackRows و expiredRows و openContracts و allContracts
+  // dataToDisplay: يعتمد على filterMode و debouncedSearchTerm فقط
   const { filteredData, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
-    let dataToDisplay;
-    let openContractsFromSearch = [];
-    let closedContractsFromSearch = [];
-
     if (debouncedSearchTerm.trim() === '') {
-        if (filterMode === FILTER_MODES.MISMATCH) dataToDisplay = mismatchRows;
-        else if (filterMode === FILTER_MODES.SWITCHBACK) dataToDisplay = switchbackRows;
-        else if (filterMode === FILTER_MODES.EXPIRED) dataToDisplay = expiredRows;
-        else dataToDisplay = openContracts;
-    } else {
-        const s = debouncedSearchTerm.trim().toLowerCase();
-        dataToDisplay = allContracts.filter(row =>
-            Object.values(row).some(
-                val => val && val.toString().toLowerCase().includes(s)
-            )
-        );
-        openContractsFromSearch = dataToDisplay.filter(c => c.type === 'open');
-        closedContractsFromSearch = dataToDisplay.filter(c => c.type !== 'open');
+        if (filterMode === FILTER_MODES.MISMATCH) return { filteredData: mismatchRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
+        if (filterMode === FILTER_MODES.SWITCHBACK) return { filteredData: switchbackRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
+        if (filterMode === FILTER_MODES.EXPIRED) return { filteredData: expiredRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
+        return { filteredData: openContracts, openContractsFromSearch: [], closedContractsFromSearch: [] };
     }
-
+    
+    const s = debouncedSearchTerm.trim().toLowerCase();
+    const searchResults = allContracts.filter(row =>
+        Object.values(row).some(val => val && val.toString().toLowerCase().includes(s))
+    );
+    
     return {
-      filteredData: dataToDisplay,
-      openContractsFromSearch,
-      closedContractsFromSearch
+        filteredData: searchResults,
+        openContractsFromSearch: searchResults.filter(c => c.type === 'open'),
+        closedContractsFromSearch: searchResults.filter(c => c.type !== 'open')
     };
-  }, [filterMode, debouncedSearchTerm, mismatchRows, switchbackRows, expiredRows, openContracts, allContracts]);
+  }, [filterMode, debouncedSearchTerm]);
 
   const mismatchCount = useMemo(() => mismatchRows.length, [mismatchRows]);
   const switchbackCount = useMemo(() => switchbackRows.length, [switchbackRows]);
   const expiredCount = useMemo(() => expiredRows.length, [expiredRows]);
   const openContractsCount = useMemo(() => openContracts.length, [openContracts]);
+
+  const handleFilterChange = useCallback((newFilter) => {
+    setFilterMode(newFilter);
+  }, []);
 
   const showToastNotification = (message) => {
     setToastMessage(message);
@@ -469,18 +466,18 @@ export default function ContractsTable() {
 
 * A photo of the car’s current mileage (KM)
 
-* A photo of the maintenance sticker
+* A photo of the maintenance sticker once open driver door
 
 * or details of the issue (if available)
 
 We are here to serve you, Thank you.`;
             copyAndOpenWhatsApp(row, template, 'Welcome message copied!');
         }},
-        { label: '3 - Switch Back Request', action: () => {
+        ...(isMismatch(row) && getLatestDateIn(row, maintenanceData) ? [{ label: '3 - Switch Back Request', action: () => {
             const template = `Good day, this is Mohamed from Invygo – Yelo Rent A Car. Your original car is ready, and we need to switch it back as per your booking (#XXXXXX). Please let me know a suitable time today and share your location. Thank you!`;
             copyAndOpenWhatsApp(row, template, 'Switch back request copied!');
-        }},
-        { label: '4 - Close Complaint', action: () => {
+        }}] : []),
+        { label: `${isMismatch(row) && getLatestDateIn(row, maintenanceData) ? '4' : '3'} - Close Complaint`, action: () => {
             const template = `now i will close the request maybe you will receive schedule email please ignore it, as we need to schedule a service in order to close it in the system.`;
             copyAndOpenWhatsApp(row, template, 'Complaint closing message copied!');
         }}
@@ -641,9 +638,15 @@ We are here to serve you, Thank you.`;
                 if (row.type !== 'open') return;
                 const firstName = (row.customer || "").split(" ")[0];
                 const phone = row.phoneNumber || "";
-                let text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
-                if (filterMode === FILTER_MODES.SWITCHBACK) {
+                
+                // التحقق من أن الصف فعلاً يحتاج switch back (mismatch + repaired)
+                const needsSwitchBack = isMismatch(row) && getLatestDateIn(row, maintenanceData);
+                
+                let text;
+                if (needsSwitchBack) {
                     text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
+                } else {
+                    text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
                 }
                 copyToClipboard(text, "WhatsApp message copied!");
             };
@@ -837,10 +840,10 @@ We are here to serve you, Thank you.`;
 
     {debouncedSearchTerm.trim() === '' && (
       <div className="controls-container">
-        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.ALL)}>📋 All ({openContractsCount})</button>
-        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.MISMATCH)}>♻️ Replacements ({mismatchCount})</button>
-        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.SWITCHBACK)}>🔁 Switch Back ({switchbackCount})</button>
-        <button className="control-button" onClick={() => setFilterMode(FILTER_MODES.EXPIRED)} style={{backgroundColor: expiredCount > 0 ? '#d32f2f' : undefined, color: expiredCount > 0 ? 'white' : undefined}}>⚠️ Expired Cars ({expiredCount})</button>
+        <button className="control-button" onClick={() => handleFilterChange(FILTER_MODES.ALL)}>📋 All ({openContractsCount})</button>
+        <button className="control-button" onClick={() => handleFilterChange(FILTER_MODES.MISMATCH)}>♻️ Replacements ({mismatchCount})</button>
+        <button className="control-button" onClick={() => handleFilterChange(FILTER_MODES.SWITCHBACK)}>🔁 Switch Back ({switchbackCount})</button>
+        <button className="control-button" onClick={() => handleFilterChange(FILTER_MODES.EXPIRED)} style={{backgroundColor: expiredCount > 0 ? '#d32f2f' : undefined, color: expiredCount > 0 ? 'white' : undefined}}>⚠️ Expired Cars ({expiredCount})</button>
         <button className="control-button" onClick={() => setShowMultiContract(true)}>🚗 Multi-Car Contracts</button>
       </div>
     )}
