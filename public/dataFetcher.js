@@ -1,7 +1,4 @@
-// استخدام proxy أسرع أو بدون proxy إذا أمكن
-const PROXY_URL = 'https://corsproxy.io/?';
-
-// إضافة cache بسيط + IndexedDB للـ cache طويل المدى
+// النسخة الأصلية بدون بروكسي للسرعة
 const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
 const LONG_CACHE_DURATION = 30 * 60 * 1000; // 30 دقيقة
@@ -75,6 +72,8 @@ const fetchSheet = async (url, viewMode) => {
         });
         return longCached;
     }
+    
+    // الوصول المباشر بدون بروكسي
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch sheet: ${response.statusText}`);
@@ -157,7 +156,7 @@ const normalizeData = (rawData, viewMode, columnMappings) => {
 self.onmessage = async (event) => {
     const { googleSheetsUrls, columnMappings } = event.data;
     try {
-        const encode = (url) => PROXY_URL + encodeURIComponent(url);
+        const encode = (url) => url; // بدون بروكسي
 
         const openContractsUrl = encode(googleSheetsUrls.openContracts);
         const closedInvygoUrl = encode(googleSheetsUrls.closedInvygo);
@@ -166,7 +165,6 @@ self.onmessage = async (event) => {
         const carsUrl = encode('https://docs.google.com/spreadsheets/d/1sHvEQMtt3suuxuMA0zhcXk5TYGqZzit0JvGLk1CQ0LI/export?format=csv&gid=804568597');
 
         // تحميل البيانات الأساسية أولاً (العقود المفتوحة)
-
         const openRaw = await fetchSheet(openContractsUrl, 'open');
         const normalizedOpen = normalizeData(openRaw, 'open', columnMappings);
         
@@ -176,11 +174,10 @@ self.onmessage = async (event) => {
                 allContracts: normalizedOpen,
                 maintenanceData: [],
                 carsData: []
-            },
-
+            }
         });
         
-        // تحميل باقي البيانات
+        // تحميل باقي البيانات بشكل متوازي
         const [closedInvygoRaw, closedOtherRaw, maintenanceRaw, carsRaw] = await Promise.all([
             fetchSheet(closedInvygoUrl, 'closed_invygo'),
             fetchSheet(closedOtherUrl, 'closed_other'),

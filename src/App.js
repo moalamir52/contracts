@@ -848,7 +848,7 @@ We are here to serve you, Thank you.`;
       </div>
     )}
 
-        {loading ? (
+        {loading && allContracts.length === 0 ? (
           <p className="loading-message">Loading...</p>
         ) : error ? (
           <p className="error-message">{error}</p>
@@ -887,14 +887,18 @@ We are here to serve you, Thank you.`;
           // عرض العقود المفتوحة فقط عند عدم وجود بحث
           <div id="contracts-table-container">
               <DataTable 
-                data={filteredData} 
-                headers={getHeadersForData(filteredData)} 
+                data={filterMode === 'all' ? openContracts : (filteredData || [])} 
+                headers={getHeadersForData(filterMode === 'all' ? openContracts : (filteredData || []))} 
                 onPhoneClick={handlePhoneClick}
                 onCustomerClick={handleCustomerClick}
                 maintenanceData={maintenanceData}
               />
-              {filteredData.length === 0 && !loading && (
+
+              {(!filteredData || filteredData.length === 0) && !loading && allContracts.length > 0 && openContracts.length === 0 && (
                 <p className="no-contracts-message">No contracts found for your criteria.</p>
+              )}
+              {(!filteredData || filteredData.length === 0) && !loading && allContracts.length === 0 && (
+                <p className="no-contracts-message">Loading data...</p>
               )}
           </div>
         )}
