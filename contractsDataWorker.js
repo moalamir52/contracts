@@ -8,4 +8,5 @@ self.addEventListener('error', (event) => {
 self.addEventListener('unhandledrejection', (event) => {
   console.error('Worker unhandled rejection:', event.reason);
   self.postMessage({ error: 'Loading error: ' + event.reason });
+  event.preventDefault();
 });
