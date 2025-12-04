@@ -59,6 +59,37 @@ const getIssueForRow = (row, maintenanceData) => {
 };
 
 // Main component for the contracts table
+
+const SearchBox = memo(({ onSearch, onReset }) => {
+  const [term, setTerm] = useState('');
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      onSearch(term);
+    }
+  };
+
+  const handleResetClick = () => {
+    setTerm('');
+    onReset();
+  };
+
+  return (
+    <>
+      <input
+        type="text"
+        placeholder="🔍 Search all contracts..."
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className="search-input"
+      />
+      <button className="control-button" onClick={() => onSearch(term)}>🔍 Search</button>
+      <button className="control-button" onClick={handleResetClick}>❌ Reset</button>
+    </>
+  );
+});
+
 export default function ContractsTable() {
   // جلب البيانات عبر عامل ويب
   useEffect(() => {
@@ -113,16 +144,42 @@ export default function ContractsTable() {
   const [maintenanceData, setMaintenanceData] = useState([]);
   const [carsData, setCarsData] = useState([]);
   const [showExpiredCars, setShowExpiredCars] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState({
+      filteredData: [],
+      openContractsFromSearch: [],
+      closedContractsFromSearch: []
+  });
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Debounce search term
+  
+  
+  // Search worker
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+      const searchWorker = new window.Worker(process.env.PUBLIC_URL + '/searchWorker.js');
+
+      searchWorker.onmessage = (event) => {
+          setSearchResults(event.data);
+          setIsSearching(false);
+      };
+
+      if (debouncedSearchTerm.trim() !== '') {
+          setIsSearching(true);
+          searchWorker.postMessage({
+              allContracts,
+              searchTerm: debouncedSearchTerm
+          });
+      } else {
+          setSearchResults({
+              filteredData: [],
+              openContractsFromSearch: [],
+              closedContractsFromSearch: []
+          });
+      }
+
+      return () => searchWorker.terminate();
+  }, [debouncedSearchTerm, allContracts]);
+
   const [filterMode, setFilterMode] = useState("all");
   const [isFilterChanging, setIsFilterChanging] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -290,7 +347,7 @@ export default function ContractsTable() {
   };
 
   // Check if car registration is expired
-  const isCarExpired = (plateNo) => {
+  const isCarExpired = useCallback((plateNo) => {
       if (!plateNo || !carsData.length) return false;
       const normalizedPlate = normalize(plateNo);
       const car = carsData.find(car => normalize(car['Plate No']) === normalizedPlate);
@@ -304,15 +361,15 @@ export default function ContractsTable() {
       
       expDate.setHours(23, 59, 59, 999); // Set to end of expiry day
       return expDate < today;
-  };
+  }, [carsData]);
 
   // Get expiry date for a plate
-  const getExpiryDate = (plateNo) => {
+  const getExpiryDate = useCallback((plateNo) => {
       if (!plateNo || !carsData.length) return null;
       const normalizedPlate = normalize(plateNo);
       const car = carsData.find(car => normalize(car['Plate No']) === normalizedPlate);
       return car ? car['Reg Exp'] : null;
-  };
+  }, [carsData]);
 
   // Debug function - add console logging
   useEffect(() => {
@@ -362,6 +419,29 @@ export default function ContractsTable() {
     }, {});
   }, [openContracts]);
 
+  const duplicatedContractsInfo = useMemo(() => {
+    const info = {};
+    // Group contracts by plate number
+    const plateToContracts = openContracts.reduce((acc, contract) => {
+      const plate = normalize(contract.invygoPlate);
+      if (plate) {
+        if (!acc[plate]) {
+          acc[plate] = [];
+        }
+        acc[plate].push(contract);
+      }
+      return acc;
+    }, {});
+
+    // Filter for plates that have more than one contract
+    for (const plate in plateToContracts) {
+      if (plateToContracts[plate].length > 1) {
+        info[plate] = plateToContracts[plate];
+      }
+    }
+    return info;
+  }, [openContracts]);
+
   // mismatchRows: يعتمد على openContracts و isMismatch
   const mismatchRows = useMemo(() => openContracts.filter(isMismatch), [openContracts]);
 
@@ -376,28 +456,22 @@ export default function ContractsTable() {
         const plates = [contract.ejarPlate, contract.invygoPlate, contract.plateNo1, contract.plateNo2].filter(Boolean);
         return plates.some(plate => isCarExpired(plate));
     });
-  }, [openContracts, carsData]);
+  }, [openContracts, isCarExpired]);
 
   // dataToDisplay: يعتمد على filterMode و debouncedSearchTerm فقط
-  const { filteredData, openContractsFromSearch, closedContractsFromSearch } = useMemo(() => {
+  const { filteredData } = useMemo(() => {
     if (debouncedSearchTerm.trim() === '') {
-        if (filterMode === FILTER_MODES.MISMATCH) return { filteredData: mismatchRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
-        if (filterMode === FILTER_MODES.SWITCHBACK) return { filteredData: switchbackRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
-        if (filterMode === FILTER_MODES.EXPIRED) return { filteredData: expiredRows, openContractsFromSearch: [], closedContractsFromSearch: [] };
-        return { filteredData: openContracts, openContractsFromSearch: [], closedContractsFromSearch: [] };
+        if (filterMode === FILTER_MODES.MISMATCH) return { filteredData: mismatchRows };
+        if (filterMode === FILTER_MODES.SWITCHBACK) return { filteredData: switchbackRows };
+        if (filterMode === FILTER_MODES.EXPIRED) return { filteredData: expiredRows };
+        return { filteredData: openContracts };
     }
-    
-    const s = debouncedSearchTerm.trim().toLowerCase();
-    const searchResults = allContracts.filter(row =>
-        Object.values(row).some(val => val && val.toString().toLowerCase().includes(s))
-    );
-    
-    return {
-        filteredData: searchResults,
-        openContractsFromSearch: searchResults.filter(c => c.type === 'open'),
-        closedContractsFromSearch: searchResults.filter(c => c.type !== 'open')
-    };
-  }, [filterMode, debouncedSearchTerm]);
+    // When searching, filteredData for export is the combination of open and closed results
+    return { filteredData: searchResults.filteredData };
+  }, [filterMode, debouncedSearchTerm, openContracts, mismatchRows, switchbackRows, expiredRows, searchResults]);
+
+  // These are only used when searching
+  const { openContractsFromSearch, closedContractsFromSearch } = searchResults;
 
   const mismatchCount = useMemo(() => mismatchRows.length, [mismatchRows]);
   const switchbackCount = useMemo(() => switchbackRows.length, [switchbackRows]);
@@ -408,13 +482,13 @@ export default function ContractsTable() {
     setFilterMode(newFilter);
   }, []);
 
-  const showToastNotification = (message) => {
+  const showToastNotification = useCallback((message) => {
     setToastMessage(message);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
-  };
+  }, []);
 
-  const copyToClipboard = (text, message = "Copied to clipboard!") => {
+  const copyToClipboard = useCallback((text, message = "Copied to clipboard!") => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
     textArea.style.position = "fixed";
@@ -431,7 +505,7 @@ export default function ContractsTable() {
       showToastNotification("Failed to copy!");
     }
     document.body.removeChild(textArea);
-  };
+  }, [showToastNotification]);
 
     const handlePhoneClick = useCallback((e, row) => {
         e.preventDefault();
@@ -452,14 +526,14 @@ export default function ContractsTable() {
         setShowModal(true);
     }, []);
 
-    const copyAndOpenWhatsApp = (row, messageTemplate, toastMessage) => {
+    const copyAndOpenWhatsApp = useCallback((row, messageTemplate, toastMessage) => {
         const normalizedPhone = normalizePhoneNumber(row.phoneNumber);
         const message = messageTemplate.replace('#XXXXXX', `#${row.bookingNumber}`);
         copyToClipboard(message, toastMessage);
         window.open(`https://wa.me/${normalizedPhone}`, "_blank");
-    };
+    }, [copyToClipboard]);
 
-    const getDropdownOptions = (row) => [
+    const getDropdownOptions = useCallback((row) => [
         { label: '1 - Open WhatsApp', action: () => window.open(`https://wa.me/${normalizePhoneNumber(row.phoneNumber)}`, "_blank") },
         { label: '2 - Welcome Message', action: () => {
             const template = `Good day,\n\nThis is Mohamed from Invygo – Yelo Rent A Car. Regarding your booking (#XXXXXX), we have received a service request for the car.\n\nTo assist you as quickly as possible, please provide:
@@ -481,7 +555,7 @@ We are here to serve you, Thank you.`;
             const template = `now i will close the request maybe you will receive schedule email please ignore it, as we need to schedule a service in order to close it in the system.`;
             copyAndOpenWhatsApp(row, template, 'Complaint closing message copied!');
         }}
-    ];
+    ], [copyAndOpenWhatsApp, maintenanceData]);
 
   const exportToExcel = useCallback(async () => {
     if (!xlsxReady || !window.XLSX) {
@@ -589,6 +663,116 @@ We are here to serve you, Thank you.`;
 
     return headersConfig.master.filter(key => populatedKeys.has(key));
   }, [filterMode, debouncedSearchTerm]);
+
+  const TableRow = memo(({ row, idx, headers, visibleColumns, columnWidths, duplicatedContractsInfo, maintenanceData, onPhoneClick, onCustomerClick, setSelectedContract, setShowModal, copyToClipboard, isCarExpired, getExpiryDate, getIssueForRow }) => {
+    const normalizedInvygoPlate = normalize(row.invygoPlate);
+    const isDuplicated = duplicatedContractsInfo[normalizedInvygoPlate]?.length > 1;
+    const mismatch = row.type === 'open' && isMismatch(row);
+    const isCarRepaired = mismatch && getLatestDateIn(row, maintenanceData);
+    const hasExpiredCar = row.type === 'open' && [row.ejarPlate, row.invygoPlate, row.plateNo1, row.plateNo2].filter(Boolean).some(plate => isCarExpired(plate));
+
+    const rowClassName = isDuplicated ? "duplicated-row"
+      : hasExpiredCar ? "expired-row"
+      : isCarRepaired ? "repaired-row"
+      : mismatch ? "mismatch-row"
+      : idx % 2 === 0 ? "even-row"
+      : "odd-row";
+
+    const copyIndexText = () => {
+        if (row.type !== 'open') return;
+        const firstName = (row.customer || "").split(" ")[0];
+        const phone = row.phoneNumber || "";
+        
+        const needsSwitchBack = isMismatch(row) && getLatestDateIn(row, maintenanceData);
+        
+        let text;
+        if (needsSwitchBack) {
+            text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
+        } else {
+            text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
+        }
+        copyToClipboard(text, "WhatsApp message copied!");
+    };
+
+    return (
+      <tr className={rowClassName}>
+        <td className="table-cell" style={{width: 50}}>
+          <span onClick={copyIndexText} className="clickable" title="Click to copy WhatsApp message">
+              {idx + 1}
+          </span>
+        </td>
+        {(visibleColumns ? headers.filter(h => visibleColumns.includes(h)) : headers).map((headerKey) => {
+          const isDateColumn = DATE_COLUMNS.includes(headerKey);
+          let value = row[headerKey] || '';
+          if (isDateColumn) {
+              value = formatDateForDisplay(value);
+          }
+
+          let content = value;
+          const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
+          
+          if ((filterMode === FILTER_MODES.MISMATCH || filterMode === FILTER_MODES.SWITCHBACK) && headerKey === 'invygoModel') {
+              const days = getDaysSinceLatestIn(row, maintenanceData);
+              if (days !== '') {
+                  content = (<span>{value}<span className="repaired-info">(Repaired: {days} days ago)</span></span>);
+              }
+          } else if (headerKey === 'customer') {
+              content = (
+                  <span onClick={() => onCustomerClick(row)} className="customer-link">
+                      {value}
+                  </span>
+              );
+          } else if (headerKey === 'contractType') {
+            content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
+          } else if (row.type === 'open' && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate')) {
+              const isExpired = isCarExpired(value);
+              const expDate = getExpiryDate(value);
+              content = (
+                  <span style={{ color: isExpired ? '#d32f2f' : 'inherit' }}>
+                      {value} {isExpired && '⚠️'}
+                      {expDate && <div style={{ fontSize: '0.8em', color: isExpired ? '#d32f2f' : '#666' }}>Exp: {expDate}</div>}
+                  </span>
+              );
+          } else if (row.type === 'open' && headerKey === 'phoneNumber') {
+              content = (
+                  <span onClick={(e) => onPhoneClick(e, row)} className="phone-link">
+                      {value}
+                  </span>
+              );
+          } else if (row.type === 'open' && headerKey === 'contractNo') {
+            content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="contract-link">{value}</a>;
+          } else if (row.type === 'open' && headerKey === 'bookingNumber') {
+            content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="booking-link">{value}</a>;
+          } else if (headerKey === 'issue') {
+            content = getIssueForRow(row, maintenanceData);
+          }
+
+          return (
+            <td key={headerKey} className="table-cell" style={{width: columnWidths[headerKey] || 150 }} title={value}>
+                {content}
+                {isDuplicated && headerKey === 'invygoPlate' && (
+                  <div className="duplicated-info">
+                    ⚠️ Rented to: { 
+                      (() => {
+                        const otherContracts = duplicatedContractsInfo[normalizedInvygoPlate] || [];
+                        const other = otherContracts.find(c => c.contractNo !== row.contractNo);
+                        if (!other) return 'N/A';
+                        return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
+                      })()
+                    }
+                  </div>
+                )}
+                {hasExpiredCar && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate') && isCarExpired(value) && (
+                  <div className="duplicated-info" style={{ color: '#d32f2f' }}>
+                    ⚠️ Registration Expired!
+                  </div>
+                )}
+            </td>
+          );
+        })}
+      </tr>
+    );
+  });
   
   const DataTable = memo(({ data, headers, onPhoneClick, onCustomerClick, maintenanceData }) => (
     <div className="data-table-container">
@@ -621,114 +805,26 @@ We are here to serve you, Thank you.`;
           </tr>
         </thead>
         <tbody>
-          {data.map((row, idx) => {
-            const isDuplicated = row.type === 'open' && invygoCounts[normalize(row.invygoPlate)] > 1;
-            const mismatch = row.type === 'open' && isMismatch(row);
-            const isCarRepaired = mismatch && getLatestDateIn(row, maintenanceData);
-            const hasExpiredCar = row.type === 'open' && [row.ejarPlate, row.invygoPlate, row.plateNo1, row.plateNo2].filter(Boolean).some(plate => isCarExpired(plate));
-            
-            const rowClassName = isDuplicated ? "duplicated-row"
-              : hasExpiredCar ? "expired-row"
-              : isCarRepaired ? "repaired-row"
-              : mismatch ? "mismatch-row"
-              : idx % 2 === 0 ? "even-row"
-              : "odd-row";
-
-            const copyIndexText = () => {
-                if (row.type !== 'open') return;
-                const firstName = (row.customer || "").split(" ")[0];
-                const phone = row.phoneNumber || "";
-                
-                // التحقق من أن الصف فعلاً يحتاج switch back (mismatch + repaired)
-                const needsSwitchBack = isMismatch(row) && getLatestDateIn(row, maintenanceData);
-                
-                let text;
-                if (needsSwitchBack) {
-                    text = `${row.bookingNumber} - Switch Back\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car / ${row.invygoModel} - ${row.invygoPlate}`;
-                } else {
-                    text = `${row.bookingNumber} - Switch\n\n${firstName} - ${phone}\n\nOld car / ${row.ejarModel} - ${row.ejarPlate}\n\nNew car /`;
-                }
-                copyToClipboard(text, "WhatsApp message copied!");
-            };
-
-            return (
-              <tr key={`${row.contractNo || 'row'}-${idx}`} className={rowClassName}>
-                <td className="table-cell" style={{width: 50}}>
-                  <span onClick={copyIndexText} className="clickable" title="Click to copy WhatsApp message">
-                      {idx + 1}
-                  </span>
-                </td>
-                {(visibleColumns ? headers.filter(h => visibleColumns.includes(h)) : headers).map((headerKey) => {
-                  const isDateColumn = DATE_COLUMNS.includes(headerKey);
-                  let value = row[headerKey] || '';
-                  if (isDateColumn) {
-                      value = formatDateForDisplay(value);
-                  }
-
-                  let content = value;
-                  const contractTypeDisplay = { open: 'Open', closed_invygo: 'Closed (Invygo)', closed_other: 'Closed (Other)' };
-                  
-                  if ((filterMode === FILTER_MODES.MISMATCH || filterMode === FILTER_MODES.SWITCHBACK) && headerKey === 'invygoModel') {
-                      const days = getDaysSinceLatestIn(row, maintenanceData);
-                      if (days !== '') {
-                          content = (<span>{value}<span className="repaired-info">(Repaired: {days} days ago)</span></span>);
-                      }
-                  } else if (headerKey === 'customer') {
-                      content = (
-                          <span onClick={() => onCustomerClick(row)} className="customer-link">
-                              {value}
-                          </span>
-                      );
-                  } else if (headerKey === 'contractType') {
-                    content = <span style={{fontWeight: 'bold'}}>{contractTypeDisplay[row.type]}</span>
-                  } else if (row.type === 'open' && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate')) {
-                      const isExpired = isCarExpired(value);
-                      const expDate = getExpiryDate(value);
-                      content = (
-                          <span style={{ color: isExpired ? '#d32f2f' : 'inherit' }}>
-                              {value} {isExpired && '⚠️'}
-                              {expDate && <div style={{ fontSize: '0.8em', color: isExpired ? '#d32f2f' : '#666' }}>Exp: {expDate}</div>}
-                          </span>
-                      );
-                  } else if (row.type === 'open' && headerKey === 'phoneNumber') {
-                      content = (
-                          <span onClick={(e) => onPhoneClick(e, row)} className="phone-link">
-                              {value}
-                          </span>
-                      );
-                  } else if (row.type === 'open' && headerKey === 'contractNo') {
-                    content = <a href="https://ejar.iyelo.com:6300/app/rental/contracts" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Contract ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="contract-link">{value}</a>;
-                  } else if (row.type === 'open' && headerKey === 'bookingNumber') {
-                    content = <a href="https://dashboard.invygo.com/bookings" onClick={(e) => { e.preventDefault(); copyToClipboard(value, `Booking ${value} copied!`); window.open(e.currentTarget.href, "_blank"); }} className="booking-link">{value}</a>;
-                  } else if (headerKey === 'issue') {
-                    content = getIssueForRow(row, maintenanceData);
-                  }
-
-                  return (
-                    <td key={headerKey} className="table-cell" style={{width: columnWidths[headerKey] || 150 }} title={value}>
-                        {content}
-                        {isDuplicated && headerKey === 'invygoPlate' && (
-                          <div className="duplicated-info">
-                            ⚠️ Rented to: { 
-                              (() => {
-                                const other = allContracts.find(r => r.type === 'open' && normalize(r.invygoPlate) === normalize(row.invygoPlate) && r !== row);
-                                if (!other) return 'N/A';
-                                return (<button onClick={() => { setSelectedContract(other); setShowModal(true); }} title="Show contract details">{`${other.customer} (${other.contractNo})`}</button>);
-                              })()
-                            }
-                          </div>
-                        )}
-                        {hasExpiredCar && (headerKey === 'invygoPlate' || headerKey === 'ejarPlate') && isCarExpired(value) && (
-                          <div className="duplicated-info" style={{ color: '#d32f2f' }}>
-                            ⚠️ Registration Expired!
-                          </div>
-                        )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {data.map((row, idx) => (
+            <TableRow
+              key={`${row.contractNo || 'row'}-${idx}`}
+              row={row}
+              idx={idx}
+              headers={headers}
+              visibleColumns={visibleColumns}
+              columnWidths={columnWidths}
+              duplicatedContractsInfo={duplicatedContractsInfo}
+              maintenanceData={maintenanceData}
+              onPhoneClick={onPhoneClick}
+              onCustomerClick={onCustomerClick}
+              setSelectedContract={setSelectedContract}
+              setShowModal={setShowModal}
+              copyToClipboard={copyToClipboard}
+              isCarExpired={isCarExpired}
+              getExpiryDate={getExpiryDate}
+              getIssueForRow={getIssueForRow}
+            />
+          ))}
         </tbody>
       </table>
     </div>
@@ -819,14 +915,7 @@ We are here to serve you, Thank you.`;
         
 
         <div className="controls-container">
-            <input
-              type="text"
-              placeholder="🔍 Search all contracts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-            <button className="control-button" onClick={() => setSearchTerm("")}>❌ Reset</button>
+            <SearchBox onSearch={setDebouncedSearchTerm} onReset={() => setDebouncedSearchTerm('')} />
             <button className="control-button" onClick={exportToExcel} disabled={!xlsxReady}>📤 Export</button>
             <button className="control-button" onClick={() => {
               // مسح الـ cache وإعادة تحميل البيانات
@@ -852,6 +941,8 @@ We are here to serve you, Thank you.`;
           <p className="loading-message">Loading...</p>
         ) : error ? (
           <p className="error-message">{error}</p>
+        ) : isSearching ? (
+          <p className="loading-message">Searching...</p>
         ) : debouncedSearchTerm.trim() !== '' ? (
           // عرض نتائج البحث في جدولين منفصلين
           <div>

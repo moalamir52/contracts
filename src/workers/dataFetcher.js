@@ -10,7 +10,6 @@ const fetchSheet = async (url, viewMode) => {
     const cacheKey = url + viewMode;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log('Using cached data for:', viewMode);
         return cached.data;
     }
     const response = await fetch(url);

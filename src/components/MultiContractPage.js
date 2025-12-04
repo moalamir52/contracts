@@ -11,6 +11,17 @@ export default function MultiContractPage({ onBack }) {
   const [selectedContract, setSelectedContract] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
+  const [copiedContract, setCopiedContract] = useState(null);
+
+  const copyContractNumber = async (contractNo) => {
+    try {
+      await navigator.clipboard.writeText(contractNo);
+      setCopiedContract(contractNo);
+      setTimeout(() => setCopiedContract(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('multiCarResults');
@@ -540,13 +551,31 @@ export default function MultiContractPage({ onBack }) {
               <tr key={idx} style={{ background: idx % 2 === 0 ? '#fffde7' : '#fff', transition: 'background 0.2s' }}>
                 <td style={{ padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15 }}>{idx + 1}</td>
                 <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', fontWeight: 'bold', textAlign: 'center', fontSize: 15 }}>
-                  <button
-                    style={{ background: 'none', border: 'none', color: '#6a1b9a', fontWeight: 'bold', fontSize: 15, cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => setSelectedContract(row)}
-                    title="Show contract details"
-                  >
-                    {row.contract}
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <button
+                      style={{ background: 'none', border: 'none', color: '#6a1b9a', fontWeight: 'bold', fontSize: 15, cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => setSelectedContract(row)}
+                      title="Show contract details"
+                    >
+                      {row.contract}
+                    </button>
+                    <button
+                      style={{ 
+                        background: copiedContract === row.contract ? '#4caf50' : '#ffd600', 
+                        border: 'none', 
+                        borderRadius: 4, 
+                        padding: '4px 8px', 
+                        cursor: 'pointer', 
+                        fontSize: 12, 
+                        color: copiedContract === row.contract ? '#fff' : '#6a1b9a',
+                        fontWeight: 'bold'
+                      }}
+                      onClick={() => copyContractNumber(row.contract)}
+                      title="Copy contract number"
+                    >
+                      {copiedContract === row.contract ? '✓' : '📋'}
+                    </button>
+                  </div>
                 </td>
                 <td style={{ minWidth: 80, padding: 12, border: '1px solid #e0e0e0', verticalAlign: 'middle', textAlign: 'center', fontSize: 15 }}>
                   {bookingIdMap.get(row.contract) || 'Branch'}
@@ -597,6 +626,106 @@ export default function MultiContractPage({ onBack }) {
           </tbody>
         </table>
       </div>
+      
+      {selectedContract && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0,0,0,0.5)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff',
+            padding: 32,
+            borderRadius: 16,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ color: '#6a1b9a', margin: 0, fontSize: 24 }}>Contract Details</h3>
+              <button
+                onClick={() => setSelectedContract(null)}
+                style={{
+                  background: '#d32f2f',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr style={{ background: '#fffde7' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Contract No.</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract.contract}</td>
+                </tr>
+                <tr style={{ background: '#fff' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Customer Name</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract['Customer Name'] || 'N/A'}</td>
+                </tr>
+                <tr style={{ background: '#fffde7' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Customer Phone</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract['Customer Phone'] || 'N/A'}</td>
+                </tr>
+                <tr style={{ background: '#fff' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Pick-up Date</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract['Pick-up Date'] || 'N/A'}</td>
+                </tr>
+                <tr style={{ background: '#fffde7' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Drop-off Date</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract['Drop-off Date'] || 'N/A'}</td>
+                </tr>
+                <tr style={{ background: '#fff' }}>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600', fontWeight: 'bold', color: '#6a1b9a' }}>Cars Count</td>
+                  <td style={{ padding: '12px', border: '1px solid #ffd600' }}>{selectedContract.carsCount} Cars</td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <h4 style={{ color: '#6a1b9a', marginTop: 20, marginBottom: 10 }}>Cars Details:</h4>
+            <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+              {selectedContract.cars.map((car, index) => {
+                const match = car.match(/^(.*?) \| (.*?) \| (.*?) \| (.*?) \| Pickup Odometer: (.*?) \((.*)\)$/);
+                if (match) {
+                  const [, plate, model, category, year, odometer, period] = match;
+                  return (
+                    <div key={index} style={{
+                      background: index % 2 === 0 ? '#fffde7' : '#fff',
+                      padding: 12,
+                      border: '1px solid #ffd600',
+                      marginBottom: 8,
+                      borderRadius: 8
+                    }}>
+                      <div><strong>Plate:</strong> {plate.trim()}</div>
+                      <div><strong>Model:</strong> {model.trim()}</div>
+                      <div><strong>Category:</strong> {category.trim()}</div>
+                      <div><strong>Year:</strong> {year.trim()}</div>
+                      <div><strong>Pickup Odometer:</strong> {odometer.trim()}</div>
+                      <div><strong>Period:</strong> {period.trim()}</div>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

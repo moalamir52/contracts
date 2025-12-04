@@ -57,14 +57,12 @@ const fetchSheet = async (url, viewMode) => {
     // فحص الـ memory cache أولاً
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log('Using memory cache for:', viewMode);
         return cached.data;
     }
     
     // فحص الـ IndexedDB cache
     const longCached = await getCachedData(cacheKey);
     if (longCached) {
-        console.log('Using IndexedDB cache for:', viewMode);
         // حفظ في الـ memory cache أيضاً
         cache.set(cacheKey, {
             data: longCached,
