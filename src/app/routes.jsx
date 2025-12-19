@@ -7,7 +7,7 @@ const MultiContractPage = lazy(() => import("../pages/MultiContract/MultiContrac
 
 export default function AppRoutes() {
     return (
-        <BrowserRouter>
+        <BrowserRouter basename={process.env.PUBLIC_URL}>
             <Suspense fallback={<div style={{ padding: 20, textAlign: 'center', fontWeight: 'bold', color: '#6a1b9a' }}>Loading Application...</div>}>
                 <Routes>
                     <Route path="/" element={<DashboardPage />} />

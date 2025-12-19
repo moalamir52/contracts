@@ -173,6 +173,23 @@ export default function DashboardPage() {
                 />
             )}
 
+            <button
+                className="control-button"
+                onClick={() => window.location.href = 'https://moalamir52.github.io/Yelo/'}
+                style={{
+                    position: 'absolute',
+                    top: '20px',
+                    left: '20px',
+                    backgroundColor: '#ffd600',
+                    color: '#6a1b9a',
+                    fontWeight: 'bold',
+                    zIndex: 1000
+                }}
+                title="Go back to Yelo Dashboard"
+            >
+                ⬅ Back to Yelo
+            </button>
+
             <div className="dashboard-header">
                 <h1>Car Rental Dashboard</h1>
                 <p>Contracts & Analysis</p>
