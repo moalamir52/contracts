@@ -1,0 +1,2 @@
+self.onmessage=e=>{const{allContracts:t,searchTerm:o}=e.data;if(!o||""===o.trim())return void self.postMessage({filteredData:[],openContractsFromSearch:[],closedContractsFromSearch:[]});const r=o.trim().toLowerCase(),s=t.filter(e=>Object.values(e).some(e=>e&&e.toString().toLowerCase().includes(r)));self.postMessage({filteredData:s,openContractsFromSearch:s.filter(e=>"open"===e.type),closedContractsFromSearch:s.filter(e=>"open"!==e.type)})};
+//# sourceMappingURL=480.cd905fcf.chunk.js.map

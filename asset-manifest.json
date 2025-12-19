@@ -1,15 +1,29 @@
 {
   "files": {
-    "main.css": "/contracts/static/css/main.1da9ee80.css",
-    "main.js": "/contracts/static/js/main.a8527dcc.js",
-    "static/js/453.15abb579.chunk.js": "/contracts/static/js/453.15abb579.chunk.js",
+    "main.css": "/contracts/static/css/main.e6c13ad2.css",
+    "main.js": "/contracts/static/js/main.557f5301.js",
+    "static/css/513.c4a29ad3.chunk.css": "/contracts/static/css/513.c4a29ad3.chunk.css",
+    "static/js/513.0c14dbc2.chunk.js": "/contracts/static/js/513.0c14dbc2.chunk.js",
+    "static/css/324.ad203873.chunk.css": "/contracts/static/css/324.ad203873.chunk.css",
+    "static/js/324.5a75eaf0.chunk.js": "/contracts/static/js/324.5a75eaf0.chunk.js",
+    "static/js/453.b898b58b.chunk.js": "/contracts/static/js/453.b898b58b.chunk.js",
+    "static/js/480.cd905fcf.chunk.js": "/contracts/static/js/480.cd905fcf.chunk.js",
+    "static/js/829.0b75aed5.chunk.js": "/contracts/static/js/829.0b75aed5.chunk.js",
+    "static/js/766.fe1c66ce.chunk.js": "/contracts/static/js/766.fe1c66ce.chunk.js",
     "index.html": "/contracts/index.html",
-    "main.1da9ee80.css.map": "/contracts/static/css/main.1da9ee80.css.map",
-    "main.a8527dcc.js.map": "/contracts/static/js/main.a8527dcc.js.map",
-    "453.15abb579.chunk.js.map": "/contracts/static/js/453.15abb579.chunk.js.map"
+    "main.e6c13ad2.css.map": "/contracts/static/css/main.e6c13ad2.css.map",
+    "main.557f5301.js.map": "/contracts/static/js/main.557f5301.js.map",
+    "513.c4a29ad3.chunk.css.map": "/contracts/static/css/513.c4a29ad3.chunk.css.map",
+    "513.0c14dbc2.chunk.js.map": "/contracts/static/js/513.0c14dbc2.chunk.js.map",
+    "324.ad203873.chunk.css.map": "/contracts/static/css/324.ad203873.chunk.css.map",
+    "324.5a75eaf0.chunk.js.map": "/contracts/static/js/324.5a75eaf0.chunk.js.map",
+    "453.b898b58b.chunk.js.map": "/contracts/static/js/453.b898b58b.chunk.js.map",
+    "480.cd905fcf.chunk.js.map": "/contracts/static/js/480.cd905fcf.chunk.js.map",
+    "829.0b75aed5.chunk.js.map": "/contracts/static/js/829.0b75aed5.chunk.js.map",
+    "766.fe1c66ce.chunk.js.map": "/contracts/static/js/766.fe1c66ce.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.1da9ee80.css",
-    "static/js/main.a8527dcc.js"
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.557f5301.js"
   ]
 }
