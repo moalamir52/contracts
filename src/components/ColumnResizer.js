@@ -1,47 +1,48 @@
-import React from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 
-// Resizer component for table columns
-export default function ColumnResizer({ onResize }) {
+const ColumnResizer = ({ onResize }) => {
+  const [isResizing, setIsResizing] = useState(false);
+
   const handleMouseDown = (e) => {
     e.preventDefault();
     e.stopPropagation();
-
+    setIsResizing(true);
     const startX = e.pageX;
-    const thElement = e.target.parentElement;
-    const startWidth = thElement.offsetWidth;
+    const startWidth = e.target.parentElement.offsetWidth;
 
     const handleMouseMove = (moveEvent) => {
       const newWidth = startWidth + (moveEvent.pageX - startX);
-      if (newWidth > 60) {
+      if (newWidth > 30) { // Min width
         onResize(newWidth);
       }
     };
 
     const handleMouseUp = () => {
+      setIsResizing(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = 'auto';
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
   };
 
   return (
     <div
       onMouseDown={handleMouseDown}
+      onClick={(e) => e.stopPropagation()}
       style={{
         position: 'absolute',
         right: 0,
         top: 0,
-        height: '100%',
-        width: '8px',
+        bottom: 0,
+        width: '5px',
         cursor: 'col-resize',
         zIndex: 10,
+        backgroundColor: isResizing ? '#6a1b9a' : 'transparent',
       }}
     />
   );
-}
+};
+
+export default ColumnResizer;

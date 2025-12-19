@@ -1,84 +1,121 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { formatDateForDisplay } from '../utils/dates';
 
-// Simple modal to display contract data
-export default function ContractModal({ contract, onClose }) {
+const ContractModal = ({ contract, onClose }) => {
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const focusable = modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    closeButtonRef.current?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!contract) return null;
 
-  const displayNames = {
-    contractNo: 'Contract No.',
-    revenueDate: 'Revenue Date',
-    bookingNumber: 'Booking Number',
-    customer: 'Customer',
-    invygoModel: 'Model',
-    invygoPlate: 'Plate No.',
-    ejarModel: 'Replace Model',
-    ejarPlate: 'Rep Plate no.',
-    phoneNumber: 'Phone Number',
-    pickupBranch: 'Pick-up Branch',
-    pickupDate: 'Pick-up Date',
-    replacementDate: 'Replacement Date',
-    dropoffDate: 'Drop-off Date',
-    model1: 'Model (Repeated)',
-    contact: 'Contact',
-    contractType: 'Contract Type'
-  };
+  const fields = [
+    { label: 'Contract No.', key: row => row.contractNo || row['Contract No.'] },
+    { label: 'Booking Number', key: row => row.bookingNumber || row['Booking Number'] },
+    { label: 'Customer', key: row => row.customer || row['Customer Name'] },
+    { label: 'Phone', key: row => row.phoneNumber || row['Phone Number'] },
+    { label: 'Type', key: row => row.contractType || row.type },
+    { label: 'Status', key: row => row.status || 'Active' },
+    { label: 'Invygo Model', key: row => row.invygoModel || row['Model'] },
+    { label: 'Invygo Plate', key: row => row.invygoPlate || row['INVYGO'] },
+    { label: 'Ejar Model', key: row => row.ejarModel || row['Model ( Ejar )'] },
+    { label: 'Ejar Plate', key: row => row.ejarPlate || row['EJAR'] },
+    { label: 'Pick-up Date', key: row => formatDateForDisplay(row.pickupDate || row['Pick-up Date']) },
+    { label: 'Drop-off Date', key: row => formatDateForDisplay(row.dropoffDate || row['Drop-off Date']) },
+    { label: 'Replacement Date', key: row => formatDateForDisplay(row.replacementDate || row['Replacement Date']) },
+    { label: 'Pick-up Branch', key: row => row.pickupBranch || row['Pick-up Branch'] },
+  ];
 
-  const finalDisplayContract = {};
-  for(const key in contract) {
-    if(displayNames[key] && contract[key]) {
-      finalDisplayContract[displayNames[key]] = contract[key];
-    }
-  }
+  const validFields = fields.filter(f => f.key(contract));
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       style={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex',
-        alignItems: 'center', justifyContent: 'center'
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', zIndex: 1000
       }}
       onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      role="button"
+      tabIndex={-1}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         style={{
-          background: '#fff9e5', borderRadius: 20, width: '90%',
-          maxWidth: 550, boxShadow: '0 6px 24px rgba(0,0,0,0.25)', 
-          border: '2px solid #6a1b9a',
-          overflow: 'hidden'
+          backgroundColor: '#fff', padding: '24px', borderRadius: '12px',
+          maxWidth: '600px', width: '90%', maxHeight: '90vh',
+          overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          cursor: 'default'
         }}
         onClick={e => e.stopPropagation()}
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
       >
         <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            backgroundColor: '#ffd600', padding: '12px 20px',
-            borderBottom: '2px solid #6a1b9a'
+          marginBottom: '20px', paddingBottom: '10px',
+          borderBottom: '2px solid #ffd600', display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center'
         }}>
-            <h2 style={{ color: '#6a1b9a', margin: 0, fontSize: '22px' }}>Contract Details</h2>
-            <button
-              onClick={onClose}
-              style={{
-                background: '#6a1b9a', color: '#ffd600', border: 'none', 
-                borderRadius: '50%', width: 30, height: 30,
-                fontWeight: 'bold', cursor: 'pointer', fontSize: '16px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}
-            >
-              X
-            </button>
+          <h2 id="modal-title" style={{ margin: 0, color: '#6a1b9a' }}>Contract Details</h2>
+          <button
+            ref={closeButtonRef}
+            style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#6a1b9a' }}
+            onClick={onClose}
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
         </div>
-        <div style={{padding: '20px', maxHeight: '70vh', overflowY: 'auto'}}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                {Object.entries(finalDisplayContract).map(([key, val], index) => (
-                  <tr key={key} style={{ backgroundColor: index % 2 === 0 ? '#fffde7' : '#fff' }}>
-                    <td style={{ fontWeight: 'bold', padding: '10px', borderBottom: '1px solid #eee', color: '#6a1b9a', width: '40%' }}>{key}</td>
-                    <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{val}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+        <div>
+          {validFields.map((field, index) => (
+            <div key={index} style={{ display: 'flex', marginBottom: '12px', borderBottom: '1px solid #f0f0f0', paddingBottom: '8px' }}>
+              <div style={{ fontWeight: 'bold', width: '180px', color: '#6a1b9a', flexShrink: 0 }}>{field.label}:</div>
+              <div style={{ flexGrow: 1, wordBreak: 'break-word' }}>{field.key(contract)}</div>
+            </div>
+          ))}
+          {contract.issue && (
+            <div style={{ display: 'flex', marginBottom: '12px', color: 'red' }}>
+              <div style={{ fontWeight: 'bold', width: '180px' }}>Reported Issue:</div>
+              <div style={{ fontWeight: 'bold' }}>{contract.issue}</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ textAlign: 'right', marginTop: '20px' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '10px 20px', background: '#6a1b9a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default ContractModal;

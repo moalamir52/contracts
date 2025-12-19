@@ -1,0 +1,175 @@
+/* Full Row Coloring Styles (Restored) */
+.dashboard-table-wrapper {
+    position: relative;
+    overflow: auto;
+    max-height: 70vh;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    direction: ltr;
+}
+
+.dashboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid #e6e6e6;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Background is inherited from TR for row coloring */
+    line-height: 1.4;
+    font-size: 14px;
+    text-align: center;
+}
+
+.dashboard-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #FFCC00;
+    color: #333;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Column Widths */
+.dashboard-table .col-index {
+    width: 44px;
+    text-align: center;
+}
+
+.dashboard-table .col-contract {
+    width: 140px;
+}
+
+.dashboard-table .col-booking {
+    width: 120px;
+}
+
+.dashboard-table .col-customer {
+    width: 160px;
+}
+
+.dashboard-table .col-model {
+    width: 160px;
+}
+
+.dashboard-table .col-plate {
+    width: 110px;
+}
+
+.dashboard-table .col-phone {
+    width: 140px;
+}
+
+.dashboard-table .col-date {
+    width: 110px;
+}
+
+.dashboard-table .col-branch {
+    width: 140px;
+}
+
+.dashboard-table .col-contact {
+    width: 120px;
+}
+
+.dashboard-table .col-type {
+    width: 120px;
+}
+
+/* Base Row Colors */
+.dashboard-table tr.row-even {
+    background-color: #fffde7;
+}
+
+.dashboard-table tr.row-odd {
+    background-color: #ffffff;
+}
+
+/* Status Colors (Full Row Highlighting) - Override base colors */
+.dashboard-table tr.row-mismatch {
+    background-color: #ffcccc !important;
+    /* Red for Mismatch */
+}
+
+.dashboard-table tr.row-mismatch td {
+    background-color: inherit !important;
+}
+
+.dashboard-table tr.row-repaired {
+    background-color: #ccffcc !important;
+    /* Green for Repaired/Switch Back */
+}
+
+.dashboard-table tr.row-repaired td {
+    background-color: inherit !important;
+}
+
+.dashboard-table tr.row-expired {
+    background-color: #ffe0b2 !important;
+    /* Orange for Expired */
+    border-left: 4px solid #ff5722 !important;
+}
+
+.dashboard-table tr.row-expired td {
+    background-color: inherit !important;
+}
+
+.dashboard-table tr.row-duplicated {
+    background-color: #ff0800 !important;
+    /* Dark Red for Duplicate */
+    color: #fff !important;
+}
+
+.dashboard-table tr.row-duplicated td {
+    background-color: inherit !important;
+    color: inherit !important;
+}
+
+/* White text/links for Duplicated Rows */
+.dashboard-table tr.row-duplicated .table-link,
+.dashboard-table tr.row-duplicated .table-action-btn,
+.dashboard-table tr.row-duplicated a {
+    color: #fff !important;
+    border-color: #fff !important;
+}
+
+.repaired-info {
+    font-size: 0.8em;
+    color: green;
+    display: block;
+}
+
+/* In duplicated rows, repaired info text needs to be white/readable */
+.dashboard-table tr.row-duplicated .repaired-info {
+    color: #fff !important;
+}
+
+.table-action-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    color: #333;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.dashboard-table tr.row-duplicated .table-action-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #fff;
+    color: #fff;
+}

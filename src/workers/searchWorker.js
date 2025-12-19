@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals */
 self.onmessage = (event) => {
     const { allContracts, searchTerm } = event.data;
 

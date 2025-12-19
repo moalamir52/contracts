@@ -1,0 +1,256 @@
+.contracts-dashboard {
+    padding: 0;
+    font-family: "Segoe UI", sans-serif;
+    background: #fff;
+    min-height: 100vh;
+    /* Changed from height to min-height */
+    display: flex;
+    flex-direction: column;
+    /* overflow: hidden; REMOVED to allow full page scroll */
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 20px;
+    background-color: #ffd600;
+    color: #6a1b9a;
+    padding: 10px 20px;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 2px solid #6a1b9a;
+}
+
+.dashboard-header {
+    background-color: #ffd600;
+    padding: 15px 25px;
+    border-radius: 15px;
+    /* Rounded corners */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    max-width: 720px;
+    /* Centered card */
+    margin: 0 auto 20px auto;
+    text-align: center;
+    border: 2px solid #6a1b9a;
+    flex-shrink: 0;
+}
+
+.dashboard-header h1 {
+    color: #6a1b9a;
+    font-size: 36px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.dashboard-header p {
+    color: #6a1b9a;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.controls-container {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.search-input {
+    padding: 10px;
+    min-width: 280px;
+    border-radius: 10px;
+    border: 1px solid #6a1b9a;
+}
+
+.control-button {
+    padding: 10px 16px;
+    background-color: #fff;
+    color: #6a1b9a;
+    border: 2px solid #6a1b9a;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1);
+    transition: 0.3s;
+}
+
+.control-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.control-button.active {
+    background-color: #6a1b9a;
+    color: #ffd600;
+}
+
+.loading-message,
+.error-message,
+.no-contracts-message {
+    text-align: center;
+    font-weight: bold;
+    padding: 20px;
+}
+
+.loading-message {
+    color: #6a1b9a;
+    font-size: 1.2em;
+}
+
+.error-message {
+    color: red;
+}
+
+.no-contracts-message {
+    color: #555;
+}
+
+.data-table-container {
+    overflow-x: auto;
+    background: white;
+    flex-grow: 1;
+    /* Fill remaining space */
+    border: 2px solid #eaeaea;
+    /* Restore border */
+    border-radius: 12px;
+    /* Restore radius */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-top: 10px;
+}
+
+.table-header-row {
+    display: flex;
+    background-color: #ffd600;
+    border-bottom: 2px solid #6a1b9a;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-row {
+    display: flex;
+    border-bottom: 1px solid #eee;
+    align-items: center;
+}
+
+.table-row:hover {
+    background-color: #f0f0f0 !important;
+}
+
+.table-cell {
+    padding: 8px;
+    border-right: 1px solid #ddd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* or flex-start based on alignment */
+}
+
+.duplicated-row {
+    background-color: #ff0800;
+    color: #fff;
+}
+
+.repaired-row {
+    background-color: #ccffcc;
+}
+
+.expired-row {
+    background-color: #ffe0b2;
+    border-left: 4px solid #ff5722;
+}
+
+.mismatch-row {
+    background-color: #ffcccc;
+}
+
+.even-row {
+    background-color: #fffde7;
+}
+
+.odd-row {
+    background-color: #ffffff;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.customer-link {
+    text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
+    color: #6a1b9a;
+}
+
+.duplicated-row .customer-link {
+    color: #fff;
+}
+
+.phone-link {
+    text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
+    color: #25D366;
+}
+
+.duplicated-row .phone-link {
+    color: #fff;
+}
+
+.contract-link,
+.booking-link {
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.contract-link {
+    color: #1976d2;
+}
+
+.booking-link {
+    color: #0077b5;
+}
+
+.duplicated-row .contract-link,
+.duplicated-row .booking-link {
+    color: #fff;
+}
+
+.repaired-info {
+    display: block;
+    color: #008000;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.duplicated-info {
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+.duplicated-info button {
+    color: #ffd600;
+    background: none;
+    border: none;
+    text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    font-size: inherit;
+}
