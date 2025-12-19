@@ -96,6 +96,15 @@
 }
 
 /* Status Colors (Full Row Highlighting) - Override base colors */
+/* Status Colors (Full Row Highlighting) - Override base colors */
+.dashboard-table .col-contract a,
+.dashboard-table .col-booking a,
+.dashboard-table .col-customer button {
+    color: #1565c0 !important;
+    /* Blue for visibility/action */
+    font-weight: 800;
+}
+
 .dashboard-table tr.row-mismatch {
     background-color: #ffcccc !important;
     /* Red for Mismatch */
