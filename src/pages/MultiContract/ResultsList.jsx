@@ -43,7 +43,7 @@ const ResultsList = ({ results, bookingIdMap, onSelectContract }) => {
                         <th className="header-cell">#</th>
                         <th className="header-cell">Contract No.</th>
                         <th className="header-cell">Booking ID</th>
-                        <th className="header-cell" style={{ width: 140 }}>Customer</th>
+                        <th className="header-cell" style={{ width: 250 }}>Customer</th>
                         <th className="header-cell">Cars (Plate & Dates)</th>
                         <th className="header-cell">Cars Count</th>
                     </tr>
@@ -75,7 +75,7 @@ const ResultsList = ({ results, bookingIdMap, onSelectContract }) => {
                             <td className="data-cell">
                                 {bookingIdMap.get(row.contractNo || row.contract) || 'Branch'}
                             </td>
-                            <td className="data-cell" style={{ maxWidth: 100, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <td className="data-cell" style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {row.customerName || row['Customer Name']}
                             </td>
                             <td className="data-cell" style={{ padding: 0, background: '#fff' }}>

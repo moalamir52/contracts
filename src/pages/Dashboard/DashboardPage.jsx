@@ -175,7 +175,7 @@ export default function DashboardPage() {
 
             <button
                 className="control-button"
-                onClick={() => window.location.href = 'https://moalamir52.github.io/Yelo/'}
+                onClick={() => window.location.href = 'https://moalamir52.github.io/Yelo/#dashboard'}
                 style={{
                     position: 'absolute',
                     top: '20px',

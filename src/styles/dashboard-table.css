@@ -47,43 +47,51 @@
 }
 
 .dashboard-table .col-contract {
-    width: 140px;
+    width: 160px;
 }
 
 .dashboard-table .col-booking {
-    width: 120px;
+    width: 150px;
 }
 
 .dashboard-table .col-customer {
-    width: 160px;
+    width: 200px;
 }
 
 .dashboard-table .col-model {
-    width: 160px;
+    width: 200px;
 }
 
 .dashboard-table .col-plate {
-    width: 110px;
+    width: 140px;
 }
 
 .dashboard-table .col-phone {
-    width: 140px;
+    width: 160px;
 }
 
 .dashboard-table .col-date {
-    width: 110px;
+    width: 130px;
 }
 
 .dashboard-table .col-branch {
-    width: 140px;
+    width: 160px;
 }
 
 .dashboard-table .col-contact {
-    width: 120px;
+    width: 150px;
 }
 
 .dashboard-table .col-type {
-    width: 120px;
+    width: 150px;
+}
+
+.dashboard-table .col-issue {
+    width: 250px;
+    white-space: normal;
+    /* Allow wrapping for long issues */
+    line-height: 1.2;
+    font-size: 0.9em;
 }
 
 /* Base Row Colors */

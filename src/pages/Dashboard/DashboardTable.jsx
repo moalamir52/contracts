@@ -29,6 +29,7 @@ const DashboardTable = ({
         if (key === 'pickupBranch') return 'col-branch';
         if (key === 'contact') return 'col-contact';
         if (key === 'contractType') return 'col-type';
+        if (key === 'issue') return 'col-issue';
         return '';
     };
 
